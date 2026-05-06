@@ -47,3 +47,15 @@ class ReviewNote(BaseModel):
 
 class ReviewResult(BaseModel):
     notes: list[ReviewNote]
+
+
+class CorrectionDiff(BaseModel):
+    original: str
+    corrected: str
+    matched_term: str
+    timestamp: str
+
+
+class CorrectionResult(BaseModel):
+    corrected_text: str
+    diffs: list[CorrectionDiff]

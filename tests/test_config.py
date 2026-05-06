@@ -38,3 +38,13 @@ def test_diarization_requires_hf_token_when_enabled(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     with pytest.raises(ValidationError, match="HF_TOKEN"):
         Settings()
+
+
+def test_proper_noun_correction_default_false(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_API_BASE", "https://x.example/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    monkeypatch.chdir(tmp_path)
+    s = Settings()
+    assert s.enable_proper_noun_correction is False
+    assert s.glossary_file == "script/prompts/glossary.md"

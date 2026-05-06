@@ -80,3 +80,14 @@ def test_review_note_target_section_enum():
 def test_chunk_extract_holds_topics_conclusions_actions():
     ce = ChunkExtract(topics=["t1"], conclusions=[_conclusion()], actions=[_action()])
     assert ce.topics == ["t1"]
+
+
+from script.schemas import CorrectionDiff, CorrectionResult
+
+
+def test_correction_result_holds_diffs():
+    r = CorrectionResult(
+        corrected_text="x",
+        diffs=[CorrectionDiff(original="a", corrected="b", matched_term="b", timestamp="00:00:01")],
+    )
+    assert len(r.diffs) == 1

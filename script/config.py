@@ -36,6 +36,10 @@ class Settings(BaseSettings):
         "jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn", alias="ALIGNMENT_MODEL"
     )
 
+    # === Transcript Correction (Stage 2.95) ===
+    enable_proper_noun_correction: bool = Field(False, alias="ENABLE_PROPER_NOUN_CORRECTION")
+    glossary_file: str = Field("script/prompts/glossary.md", alias="GLOSSARY_FILE")
+
     # === Chunking / LLM ===
     llm_chunk_tokens: int = Field(4000, alias="LLM_CHUNK_TOKENS")
     llm_chunk_overlap_ratio: float = Field(0.10, alias="LLM_CHUNK_OVERLAP_RATIO")

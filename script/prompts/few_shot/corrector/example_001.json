@@ -1,0 +1,5 @@
+{
+  "input": "[00:01:05] 肖王你下週要不要去客戶那邊做菲尼克斯的 demo？\n[00:01:15] 司普林特那邊我先 review。",
+  "output": "{\"corrected_text\": \"[00:01:05] 小王你下週要不要去客戶那邊做 Phoenix 的 demo？\\n[00:01:15] Sprint 那邊我先 review。\", \"diffs\": [{\"original\": \"肖王\", \"corrected\": \"小王\", \"matched_term\": \"小王\", \"timestamp\": \"00:01:05\"}, {\"original\": \"菲尼克斯\", \"corrected\": \"Phoenix\", \"matched_term\": \"Phoenix\", \"timestamp\": \"00:01:05\"}, {\"original\": \"司普林特\", \"corrected\": \"Sprint\", \"matched_term\": \"Sprint\", \"timestamp\": \"00:01:15\"}]}",
+  "comment": "示範：時間戳、標點、其他字一字不動。"
+}
