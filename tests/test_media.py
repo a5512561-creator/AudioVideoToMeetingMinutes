@@ -1,7 +1,8 @@
-import subprocess
+import sys
+from pathlib import Path
 from unittest.mock import patch
 import pytest
-from script.media import extract_audio, FFmpegMissingError, FFmpegFailedError
+from script.media import extract_audio, FFmpegMissingError, FFmpegFailedError, _find_ffmpeg
 
 
 def test_extract_audio_builds_correct_command(tmp_path):
@@ -9,7 +10,7 @@ def test_extract_audio_builds_correct_command(tmp_path):
     src.write_bytes(b"x")
     dst = tmp_path / "out.wav"
 
-    with patch("script.media.shutil.which", return_value="ffmpeg"), \
+    with patch("script.media._find_ffmpeg", return_value="ffmpeg"), \
          patch("script.media.subprocess.run") as run:
         run.return_value.returncode = 0
         run.return_value.stderr = ""
@@ -26,15 +27,36 @@ def test_extract_audio_builds_correct_command(tmp_path):
 
 
 def test_extract_audio_raises_when_ffmpeg_missing(tmp_path):
-    with patch("script.media.shutil.which", return_value=None):
+    with patch("script.media._find_ffmpeg", return_value=None):
         with pytest.raises(FFmpegMissingError):
             extract_audio(str(tmp_path / "in.mp4"), str(tmp_path / "out.wav"))
 
 
 def test_extract_audio_raises_on_nonzero_exit(tmp_path):
-    with patch("script.media.shutil.which", return_value="ffmpeg"), \
+    with patch("script.media._find_ffmpeg", return_value="ffmpeg"), \
          patch("script.media.subprocess.run") as run:
         run.return_value.returncode = 1
         run.return_value.stderr = "boom"
         with pytest.raises(FFmpegFailedError, match="boom"):
             extract_audio(str(tmp_path / "in.mp4"), str(tmp_path / "out.wav"))
+
+
+def test_find_ffmpeg_prefers_path_then_venv(tmp_path):
+    # PATH hit returns immediately
+    with patch("script.media.shutil.which", return_value="/sys/ffmpeg"):
+        assert _find_ffmpeg() == "/sys/ffmpeg"
+
+    # PATH miss → fall back to <sys.prefix>/Scripts/ffmpeg.exe (Windows venv shape)
+    fake_prefix = tmp_path / "venv"
+    (fake_prefix / "Scripts").mkdir(parents=True)
+    bundled = fake_prefix / "Scripts" / "ffmpeg.exe"
+    bundled.write_bytes(b"")
+    with patch("script.media.shutil.which", return_value=None), \
+         patch("script.media.sys.prefix", str(fake_prefix)), \
+         patch("script.media.os.name", "nt"):
+        assert _find_ffmpeg() == str(bundled)
+
+    # Both miss → None
+    with patch("script.media.shutil.which", return_value=None), \
+         patch("script.media.sys.prefix", str(tmp_path / "no_venv")):
+        assert _find_ffmpeg() is None
