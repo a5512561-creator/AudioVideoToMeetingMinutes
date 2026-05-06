@@ -82,11 +82,11 @@ def test_call_invokes_instructor_with_response_model(prompt_dir):
     ]
 
 
-def test_probe_instructor_mode_returns_json_schema_when_supported():
+def test_probe_instructor_mode_returns_tools_when_supported():
     fake_client = MagicMock()
     fake_client.chat.completions.create.return_value = MagicMock()  # no exception
     mode = probe_instructor_mode(fake_client, model="m")
-    assert mode == "JSON_SCHEMA"
+    assert mode == "TOOLS"
 
 
 def test_probe_instructor_mode_falls_back_to_json_on_error():

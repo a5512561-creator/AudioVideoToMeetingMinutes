@@ -1,4 +1,5 @@
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 import instructor
@@ -10,6 +11,41 @@ from pydantic import BaseModel
 class FewShot:
     input: str
     output: str
+
+
+_THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
+
+
+def _strip_thinking_tokens(client):
+    """Wrap client.chat.completions.create to strip <think>...</think> blocks.
+
+    Required for OSS reasoning models (gpt-oss, deepseek-r1, qwen3-thinking,
+    Realtek's "medium" model) that prepend reasoning tokens to the actual JSON
+    payload — Instructor's JSON parser would choke on the prefix otherwise.
+
+    Idempotent: a second call is a no-op.
+    """
+    if getattr(client, "_strip_thinking_installed", False):
+        return client
+    _orig = client.chat.completions.create
+
+    def _create(*a, **kw):
+        resp = _orig(*a, **kw)
+        for choice in getattr(resp, "choices", []):
+            msg = getattr(choice, "message", None)
+            if msg is None:
+                continue
+            if getattr(msg, "content", None):
+                msg.content = _THINK_RE.sub("", msg.content)
+            for tc in (getattr(msg, "tool_calls", None) or []):
+                fn = getattr(tc, "function", None)
+                if fn and getattr(fn, "arguments", None):
+                    fn.arguments = _THINK_RE.sub("", fn.arguments)
+        return resp
+
+    client.chat.completions.create = _create
+    client._strip_thinking_installed = True
+    return client
 
 
 class LLMAgent:
@@ -25,6 +61,7 @@ class LLMAgent:
         self.name = name
         self.prompts_dir = Path(prompts_dir)
         self.model = model
+        client = _strip_thinking_tokens(client)
         self.llm = instructor.from_openai(
             client, mode=getattr(instructor.Mode, instructor_mode)
         )
@@ -71,25 +108,28 @@ class LLMAgent:
 
 
 def probe_instructor_mode(client, *, model: str) -> str:
-    """Probe the OpenAI-compat server for strict JSON_SCHEMA support.
+    """Probe the OpenAI-compat server for tool-calling support.
 
-    Returns "JSON_SCHEMA" if a tiny request succeeds with response_format json_schema,
-    else "JSON" (broadly compatible fallback).
+    Returns one of Instructor's OpenAI-provider modes:
+      - "TOOLS"  : function/tool calling works (preferred — Instructor uses it
+                   for strict schema validation)
+      - "JSON"   : tools rejected, fall back to response_format=json_object
+                   (broadly compatible)
     """
     try:
         client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": "ping"}],
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
+            tools=[{
+                "type": "function",
+                "function": {
                     "name": "probe",
-                    "strict": True,
-                    "schema": {"type": "object", "properties": {}, "additionalProperties": False},
+                    "description": "test",
+                    "parameters": {"type": "object", "properties": {}},
                 },
-            },
+            }],
             max_tokens=4,
         )
-        return "JSON_SCHEMA"
+        return "TOOLS"
     except Exception:
         return "JSON"
