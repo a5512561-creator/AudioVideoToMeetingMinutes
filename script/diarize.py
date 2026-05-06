@@ -18,7 +18,26 @@ class TranscribedSegment:
     speaker: str   # "SPEAKER_N" or "UNKNOWN"
 
 
+def _ensure_torch_load_unsafe() -> None:
+    # PyTorch 2.6+ defaults torch.load(weights_only=True). pyannote 3.x
+    # checkpoints contain non-tensor objects (TorchVersion, Specifications, ...)
+    # that aren't in the default allowlist. Force weights_only=False once;
+    # checkpoints come from HF over HTTPS so trust is acceptable.
+    import torch
+    if getattr(torch.load, "_pyannote_patched", False):
+        return
+    _orig = torch.load
+
+    def _patched(*a, **kw):
+        kw["weights_only"] = False
+        return _orig(*a, **kw)
+
+    _patched._pyannote_patched = True  # type: ignore[attr-defined]
+    torch.load = _patched
+
+
 def diarize(audio_path: str, *, model: str, hf_token: str) -> list[SpeakerSegment]:
+    _ensure_torch_load_unsafe()
     pipeline = Pipeline.from_pretrained(model, use_auth_token=hf_token)
     annotation = pipeline(audio_path)
     out: list[SpeakerSegment] = []

@@ -30,7 +30,11 @@ class Settings(BaseSettings):
     enable_diarization: bool = Field(False, alias="ENABLE_DIARIZATION")
     hf_token: str = Field("", alias="HF_TOKEN")
     diarization_model: str = Field(
-        "pyannote/speaker-diarization-community-1", alias="DIARIZATION_MODEL"
+        # pyannote 3.1 (Apache-2.0, free): works with pyannote.audio 3.x.
+        # Community-1 (CC-BY-4.0) requires pyannote.audio 4.x which on Windows
+        # currently brings dep-hell (torchcodec/k2). Switch to Community-1 once
+        # those upstream issues are resolved.
+        "pyannote/speaker-diarization-3.1", alias="DIARIZATION_MODEL"
     )
     alignment_model: str = Field(
         "jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn", alias="ALIGNMENT_MODEL"
