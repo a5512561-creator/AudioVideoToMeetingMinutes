@@ -35,6 +35,19 @@ Edit `.env` to fill in:
    - `HF_TOKEN=hf_...`
 5. First run will download model files (~500 MB pyannote + ~1.2 GB wav2vec2 alignment) into `~/.cache/huggingface/`. After that, fully offline.
 
+## (Optional) Enable Proper-Noun Correction
+
+Whisper occasionally mis-transcribes Chinese proper nouns (人名, 公司名, 產品名). To fix this:
+
+1. Edit `script/prompts/glossary.md` and list your common terms (人名 / 產品 / 縮寫).
+2. In `.env` set `ENABLE_PROPER_NOUN_CORRECTION=true`.
+3. Each run will:
+   - Save the original transcript as `out\<name>\transcript.raw.md`.
+   - Overwrite `transcript.md` with the corrected version.
+   - Log every change to `out\<name>\intermediate\correction_diff.json` for audit.
+
+The LLM is prompted with a strictly conservative rule: **only fix terms listed in glossary.md, change nothing else**.
+
 ## Usage
 
 ```powershell

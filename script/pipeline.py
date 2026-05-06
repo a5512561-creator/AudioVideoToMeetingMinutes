@@ -14,6 +14,8 @@ from script.excel_writer import write_minutes_xlsx
 from script.agents.base import probe_instructor_mode
 from script.agents.minutes_agent import MinutesAgent
 from script.agents.reviewer_agent import ReviewerAgent
+from script.transcript_corrector import correct_transcript
+from script.agents.corrector_agent import CorrectorAgent
 
 
 def _chunk_to_dict(c) -> dict:
@@ -87,6 +89,30 @@ def run_pipeline(
             transcript_text = transcript_path.read_text(encoding="utf-8") if transcript_path.exists() else ""
     else:
         log_kv(logger, "INFO", "stage.transcribe.cached", path=str(transcript_path))
+        transcript_text = transcript_path.read_text(encoding="utf-8")
+
+    # Stage 2.95: optional proper-noun correction
+    if settings.enable_proper_noun_correction:
+        client_for_corrector = OpenAI(
+            api_key=settings.openai_api_key, base_url=settings.openai_api_base
+        )
+        mode_pre = probe_instructor_mode(client_for_corrector, model=settings.openai_model)
+        corrector = CorrectorAgent(
+            prompts_dir="script/prompts", client=client_for_corrector,
+            model=settings.openai_model, instructor_mode=mode_pre,
+        )
+        correct_transcript(
+            transcript_path=str(transcript_path),
+            glossary_path=settings.glossary_file,
+            diff_path=str(inter_dir / "correction_diff.json"),
+            raw_backup_path=str(out_dir / "transcript.raw.md"),
+            agent=corrector,
+            chunk_chars=settings.llm_chunk_tokens,
+        )
+        log_kv(logger, "INFO", "stage.corrector", enabled=True)
+
+    # Re-read transcript (may have been corrected by Stage 2.95)
+    if transcript_path.exists():
         transcript_text = transcript_path.read_text(encoding="utf-8")
 
     # Stage 3: Minutes
