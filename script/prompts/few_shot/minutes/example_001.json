@@ -1,0 +1,5 @@
+{
+  "input": "[00:05:12] 那關於下週的 demo，我覺得 API 規格還沒定，這樣動不了。\n[00:05:20] 對，我覺得這個是 blocker，小王你能不能下週五前出 spec？\n[00:05:25] 沒問題我來。\n[00:05:30] OK 那就這樣決定，roadmap 部分我們就照 A 案走。",
+  "output": "{\"topics\": [\"API 規格\", \"Roadmap 決議\"], \"conclusions\": [{\"text\": \"下季度 roadmap 採用 A 案\", \"is_inferred\": false, \"source_quote\": \"roadmap 部分我們就照 A 案走\", \"source_timestamp\": \"00:05:30\", \"source_speaker\": null}], \"actions\": [{\"task\": \"完成 API 規格\", \"owner\": \"小王\", \"due\": \"下週五\", \"priority\": \"high\", \"source_quote\": \"小王你能不能下週五前出 spec\", \"source_timestamp\": \"00:05:20\", \"source_speaker\": null, \"rationale\": \"任務由發言直接指定；priority=high 因發言中提到『動不了』、為下週 demo 的 blocker\", \"is_inferred\": false, \"owner_inferred\": false, \"due_inferred\": false, \"priority_inferred\": true}]}",
+  "comment": "示範：明示的 conclusion 與 action，priority 由 'blocker' 字眼推論為 high。"
+}

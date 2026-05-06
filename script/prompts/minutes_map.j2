@@ -1,0 +1,14 @@
+{% for s in few_shots %}
+範例輸入：
+{{ s.input }}
+
+範例輸出：
+{{ s.output }}
+
+---
+{% endfor %}
+
+請從以下會議逐字稿片段抽取 topics、conclusions、actions（JSON 格式，符合 ChunkExtract schema）：
+
+逐字稿片段（時間 {{ first_timestamp }} ~ {{ last_timestamp }}）：
+{{ chunk_text }}
