@@ -16,6 +16,8 @@ from script.agents.minutes_agent import MinutesAgent
 from script.agents.reviewer_agent import ReviewerAgent
 from script.transcript_corrector import correct_transcript
 from script.agents.corrector_agent import CorrectorAgent
+from script.schemas import MeetingMinutes, ReviewResult
+from script import speaker_map as _spk_map
 
 
 def _chunk_to_dict(c) -> dict:
@@ -34,6 +36,7 @@ def run_pipeline(
     force: bool = False,
     skip_transcribe: bool = False,
     diarize_override: bool | None = None,
+    rerender_only: bool = False,
 ) -> None:
     base_name = name or Path(src).stem
     out_dir = Path(settings.out_dir) / base_name
@@ -41,7 +44,34 @@ def run_pipeline(
     out_dir.mkdir(parents=True, exist_ok=True)
     inter_dir.mkdir(parents=True, exist_ok=True)
     logger = setup_logger("pipeline", log_dir=settings.log_dir, level=settings.log_level)
-    log_kv(logger, "INFO", "pipeline.start", file=src, name=base_name)
+    log_kv(logger, "INFO", "pipeline.start", file=src, name=base_name,
+           rerender_only=rerender_only)
+
+    # Always load speaker_map (empty dict if missing)
+    spk_map = _spk_map.load(str(out_dir / "speaker_map.json"))
+
+    if rerender_only:
+        # Read cached minutes + review, re-write outputs only
+        minutes_path = inter_dir / "minutes.json"
+        review_path = inter_dir / "review.json"
+        if not minutes_path.exists() or not review_path.exists():
+            raise RuntimeError(
+                "--rerender requires cached intermediate/minutes.json and "
+                "intermediate/review.json from a previous full run."
+            )
+        minutes = MeetingMinutes.model_validate_json(minutes_path.read_text(encoding="utf-8"))
+        review = ReviewResult.model_validate_json(review_path.read_text(encoding="utf-8"))
+        diar_was_used = (out_dir / "speaker_map.json").exists()
+        speakers_detected = len({k for k in spk_map}) if diar_was_used else 0
+
+        write_minutes_xlsx(minutes, review, str(out_dir / "minutes.xlsx"), speaker_map=spk_map)
+        write_review_report_md(
+            minutes, review, str(out_dir / "review_report.md"),
+            meeting_file=src, diarization_enabled=diar_was_used,
+            speakers_detected=speakers_detected, speaker_map=spk_map,
+        )
+        log_kv(logger, "INFO", "pipeline.done", out=str(out_dir), mode="rerender")
+        return
 
     audio_path = inter_dir / "audio.wav"
     transcript_path = out_dir / "transcript.md"
@@ -81,6 +111,12 @@ def run_pipeline(
                 json.dumps([s.__dict__ for s in speaker_segs], ensure_ascii=False),
                 encoding="utf-8",
             )
+            _spk_map.write_template(
+                str(out_dir / "speaker_map.json"),
+                [s.label for s in speaker_segs],
+            )
+            # Reload in case template was just created (identity mapping for full runs)
+            spk_map = _spk_map.load(str(out_dir / "speaker_map.json"))
             merged = assign_speakers(segments, speaker_segs)
             write_transcript_md(merged, str(transcript_path))
             transcript_text = transcript_path.read_text(encoding="utf-8") if transcript_path.exists() else ""
@@ -163,11 +199,12 @@ def run_pipeline(
            items=len(review.notes), warns=warns, errors=errors)
 
     # Outputs
-    write_minutes_xlsx(minutes, review, str(out_dir / "minutes.xlsx"))
+    write_minutes_xlsx(minutes, review, str(out_dir / "minutes.xlsx"), speaker_map=spk_map)
     write_review_report_md(
         minutes, review, str(out_dir / "review_report.md"),
         meeting_file=src,
         diarization_enabled=diar_enabled,
         speakers_detected=speakers_detected,
+        speaker_map=spk_map,
     )
     log_kv(logger, "INFO", "pipeline.done", out=str(out_dir))

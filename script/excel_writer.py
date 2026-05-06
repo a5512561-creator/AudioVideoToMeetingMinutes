@@ -7,6 +7,7 @@ from script.schemas import (
     ReviewResult,
     ReviewNote,
 )
+from script.speaker_map import remap as _remap
 
 
 _INFERRED_PREFIX = "[LLM推論] "
@@ -36,9 +37,15 @@ def _index_review(review: ReviewResult) -> dict[tuple[str, str], ReviewNote]:
     return {(n.target_section, n.target_id): n for n in review.notes}
 
 
-def write_minutes_xlsx(minutes: MeetingMinutes, review: ReviewResult, dst: str) -> None:
+def write_minutes_xlsx(
+    minutes: MeetingMinutes,
+    review: ReviewResult,
+    dst: str,
+    speaker_map: dict[str, str] | None = None,
+) -> None:
     Path(dst).parent.mkdir(parents=True, exist_ok=True)
     review_ix = _index_review(review)
+    _sm = speaker_map or {}
 
     wb = Workbook()
     ws = wb.active
@@ -59,7 +66,7 @@ def write_minutes_xlsx(minutes: MeetingMinutes, review: ReviewResult, dst: str) 
             cell_text.fill = _INFERRED_FILL
         ws.cell(row=next_row, column=3, value=c.source_quote)
         ws.cell(row=next_row, column=4, value=c.source_timestamp)
-        ws.cell(row=next_row, column=5, value=c.source_speaker or "")
+        ws.cell(row=next_row, column=5, value=_remap(c.source_speaker, _sm) or "")
         ws.cell(row=next_row, column=6, value=_format_review(rev))
         next_row += 1
 
@@ -81,7 +88,7 @@ def write_minutes_xlsx(minutes: MeetingMinutes, review: ReviewResult, dst: str) 
             cell_text.fill = _INFERRED_FILL
         ws.cell(row=next_row, column=3, value=k.source_quote)
         ws.cell(row=next_row, column=4, value=k.source_timestamp)
-        ws.cell(row=next_row, column=5, value=k.source_speaker or "")
+        ws.cell(row=next_row, column=5, value=_remap(k.source_speaker, _sm) or "")
         ws.cell(row=next_row, column=6, value=_format_review(rev))
         next_row += 1
 
@@ -121,7 +128,7 @@ def write_minutes_xlsx(minutes: MeetingMinutes, review: ReviewResult, dst: str) 
 
         ws.cell(row=next_row, column=6, value=a.source_quote)
         ws.cell(row=next_row, column=7, value=a.source_timestamp)
-        ws.cell(row=next_row, column=8, value=a.source_speaker or "")
+        ws.cell(row=next_row, column=8, value=_remap(a.source_speaker, _sm) or "")
         ws.cell(row=next_row, column=9, value=a.rationale)
         ws.cell(row=next_row, column=10, value=_format_review(rev))
         next_row += 1

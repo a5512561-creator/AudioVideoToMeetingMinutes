@@ -27,6 +27,7 @@ def write_transcript_md(
 
 
 from script.schemas import MeetingMinutes, ReviewResult, ReviewNote
+from script.speaker_map import remap as _remap
 
 
 def write_review_report_md(
@@ -37,6 +38,7 @@ def write_review_report_md(
     meeting_file: str,
     diarization_enabled: bool,
     speakers_detected: int,
+    speaker_map: dict[str, str] | None = None,
 ) -> None:
     Path(dst).parent.mkdir(parents=True, exist_ok=True)
     notes = review.notes
@@ -58,16 +60,18 @@ def write_review_report_md(
         "",
     ]
 
+    _sm = speaker_map or {}
+
     if errors:
         lines.append(f"## ❌ Error ({len(errors)})")
         for n in errors:
-            lines.extend(_render_note(n, minutes))
+            lines.extend(_render_note(n, minutes, _sm))
         lines.append("")
 
     if warns:
         lines.append(f"## ⚠️ Warning ({len(warns)})")
         for n in warns:
-            lines.extend(_render_note(n, minutes))
+            lines.extend(_render_note(n, minutes, _sm))
         lines.append("")
 
     if oks:
@@ -99,8 +103,13 @@ def _ok_label(n: ReviewNote, minutes: MeetingMinutes) -> str:
     return f"{item.task} ({item.owner} / {item.due})"
 
 
-def _render_note(n: ReviewNote, minutes: MeetingMinutes) -> list[str]:
+def _render_note(
+    n: ReviewNote,
+    minutes: MeetingMinutes,
+    speaker_map: dict[str, str] | None = None,
+) -> list[str]:
     item = _lookup(minutes, n)
+    _sm = speaker_map or {}
     if n.target_section == "conclusion":
         section_label = "結論"
     elif n.target_section == "key_point":
@@ -112,12 +121,14 @@ def _render_note(n: ReviewNote, minutes: MeetingMinutes) -> list[str]:
         if n.target_section in ("conclusion", "key_point"):
             prefix = "[LLM推論] " if item.is_inferred else ""
             out.append(f"> {prefix}{item.text}")
-            sp = f", {item.source_speaker}" if item.source_speaker else ""
+            mapped_sp = _remap(item.source_speaker, _sm)
+            sp = f", {mapped_sp}" if mapped_sp else ""
             out.append(f"> 來源：「{item.source_quote}」({item.source_timestamp}{sp})")
         else:
             prefix = "[LLM推論] " if item.is_inferred else ""
             out.append(f"> {prefix}{item.task}（{item.owner} / {item.due}）")
-            sp = f", {item.source_speaker}" if item.source_speaker else ""
+            mapped_sp = _remap(item.source_speaker, _sm)
+            sp = f", {mapped_sp}" if mapped_sp else ""
             out.append(f"> 來源：「{item.source_quote}」({item.source_timestamp}{sp})")
     out.append("")
     out.append(f"**問題**：{n.note}")

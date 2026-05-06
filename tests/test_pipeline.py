@@ -1,4 +1,5 @@
 import json
+import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from script.config import Settings
@@ -170,3 +171,38 @@ def test_pipeline_invokes_corrector_when_enabled(
 
     correct_m.assert_called_once()
     CAm.assert_called_once()
+
+
+@patch("script.pipeline.write_minutes_xlsx")
+@patch("script.pipeline.write_review_report_md")
+def test_pipeline_rerender_only_skips_llm_and_uses_cached(
+    write_r, write_x, tmp_path, monkeypatch,
+):
+    settings = _settings(tmp_path, ENABLE_DIARIZATION="true", HF_TOKEN="hf_x")
+    out_dir = Path(settings.out_dir) / "t"
+    inter_dir = out_dir / "intermediate"
+    inter_dir.mkdir(parents=True)
+    # Pre-place cached minutes + review JSON
+    cached_minutes = MeetingMinutes(conclusions=[_conc()], actions=[_act()])
+    (inter_dir / "minutes.json").write_text(cached_minutes.model_dump_json(), encoding="utf-8")
+    cached_review = ReviewResult(notes=[
+        ReviewNote(target_section="conclusion", target_id="C1",
+                   category="ok", severity="info", note="", suggestion=""),
+        ReviewNote(target_section="action", target_id="A1",
+                   category="ok", severity="info", note="", suggestion=""),
+    ])
+    (inter_dir / "review.json").write_text(cached_review.model_dump_json(), encoding="utf-8")
+    (out_dir / "speaker_map.json").write_text('{"SPEAKER_00": "Albert"}', encoding="utf-8")
+
+    run_pipeline("in.mp4", settings=settings, name="t", rerender_only=True)
+
+    write_x.assert_called_once()
+    write_r.assert_called_once()
+    # Verify speaker_map was passed through
+    assert write_x.call_args.kwargs["speaker_map"] == {"SPEAKER_00": "Albert"}
+
+
+def test_pipeline_rerender_only_raises_without_cache(tmp_path):
+    settings = _settings(tmp_path)
+    with pytest.raises(RuntimeError, match="cached"):
+        run_pipeline("in.mp4", settings=settings, name="missing", rerender_only=True)

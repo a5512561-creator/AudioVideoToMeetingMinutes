@@ -117,3 +117,23 @@ def test_review_report_key_point_ok_and_warn(tmp_path):
     # OK section shows K1: <text>
     assert "## ✅ OK (1)" in text
     assert "K1: k1" in text
+
+
+def test_review_report_uses_speaker_map(tmp_path):
+    minutes = MeetingMinutes(
+        conclusions=[_c("c1")],   # _c uses SPEAKER_1 by default
+        actions=[],
+    )
+    review = ReviewResult(notes=[
+        ReviewNote(target_section="conclusion", target_id="C1",
+                   category="ambiguity", severity="warn", note="x", suggestion="y"),
+    ])
+    dst = tmp_path / "report.md"
+    write_review_report_md(
+        minutes, review, str(dst),
+        meeting_file="m.mp4", diarization_enabled=True, speakers_detected=1,
+        speaker_map={"SPEAKER_1": "Albert"},
+    )
+    text = dst.read_text(encoding="utf-8")
+    assert "Albert" in text
+    assert "SPEAKER_1" not in text

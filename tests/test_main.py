@@ -1,6 +1,7 @@
 from unittest.mock import patch
 from typer.testing import CliRunner
 from script.main import app
+import pytest
 
 
 def test_cli_passes_basic_args(monkeypatch, tmp_path):
@@ -31,3 +32,15 @@ def test_cli_diarize_flag_overrides(monkeypatch, tmp_path):
         result = runner.invoke(app, ["meeting.mp4", "--diarize"])
     assert result.exit_code == 0, result.output
     assert run.call_args.kwargs["diarize_override"] is True
+
+
+def test_cli_rerender_flag(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk")
+    monkeypatch.setenv("OPENAI_API_BASE", "https://x/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "m")
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    with patch("script.main.run_pipeline") as run:
+        result = runner.invoke(app, ["meeting.mp4", "--name", "t", "--rerender"])
+    assert result.exit_code == 0, result.output
+    assert run.call_args.kwargs["rerender_only"] is True

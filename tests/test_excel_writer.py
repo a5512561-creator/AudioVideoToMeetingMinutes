@@ -145,3 +145,34 @@ def test_key_point_warn_appears_in_review_summary(tmp_path):
     all_strs = [c.value for row in ws.iter_rows() for c in row if isinstance(c.value, str)]
     assert "重點" in all_strs  # sec_label for key_point
     assert "K1" in all_strs
+
+
+def test_speaker_map_substitutes_labels(tmp_path):
+    # conclusion + action with SPEAKER_00 / SPEAKER_01
+    minutes = MeetingMinutes(
+        conclusions=[_conc(text="c1", speaker="SPEAKER_00")],
+        actions=[_act(task="a1", speaker="SPEAKER_01")],
+    )
+    review = ReviewResult(notes=[
+        _ok_note("conclusion", "C1"),
+        _ok_note("action", "A1"),
+    ])
+    dst = tmp_path / "m.xlsx"
+    write_minutes_xlsx(minutes, review, str(dst),
+                       speaker_map={"SPEAKER_00": "Albert", "SPEAKER_01": "John"})
+    ws = load_workbook(dst)["會議記錄"]
+    all_strs = [c.value for row in ws.iter_rows() for c in row if isinstance(c.value, str)]
+    assert any("Albert" in s for s in all_strs)
+    assert any("John" in s for s in all_strs)
+    assert not any("SPEAKER_00" in s for s in all_strs)
+
+
+def test_speaker_map_passthrough_when_no_mapping(tmp_path):
+    minutes = MeetingMinutes(conclusions=[_conc(speaker="SPEAKER_99")], actions=[])
+    review = ReviewResult(notes=[_ok_note("conclusion", "C1")])
+    dst = tmp_path / "m.xlsx"
+    write_minutes_xlsx(minutes, review, str(dst),
+                       speaker_map={"SPEAKER_00": "Albert"})
+    ws = load_workbook(dst)["會議記錄"]
+    all_strs = [c.value for row in ws.iter_rows() for c in row if isinstance(c.value, str)]
+    assert any("SPEAKER_99" in s for s in all_strs)
