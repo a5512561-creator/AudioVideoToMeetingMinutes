@@ -34,6 +34,7 @@ def test_transcript_with_speaker(tmp_path):
 from script.schemas import (
     Conclusion,
     Action,
+    KeyPoint,
     MeetingMinutes,
     ReviewNote,
     ReviewResult,
@@ -54,6 +55,13 @@ def _a(task="a"):
         source_quote="q", source_timestamp="00:00:02", source_speaker=None,
         rationale="r", is_inferred=False, owner_inferred=False,
         due_inferred=False, priority_inferred=True,
+    )
+
+
+def _k(text="k"):
+    return KeyPoint(
+        text=text, is_inferred=False, source_quote="kq",
+        source_timestamp="00:00:03", source_speaker=None,
     )
 
 
@@ -82,3 +90,30 @@ def test_review_report_groups_warn_and_ok(tmp_path):
     assert "## ✅ OK (2)" in text
     assert "C1: c1" in text
     assert "A1: a1" in text
+
+
+def test_review_report_key_point_ok_and_warn(tmp_path):
+    minutes = MeetingMinutes(
+        conclusions=[],
+        key_points=[_k("k1"), _k("k2")],
+        actions=[],
+    )
+    review = ReviewResult(notes=[
+        ReviewNote(target_section="key_point", target_id="K1",
+                   category="ok", severity="info", note="", suggestion=""),
+        ReviewNote(target_section="key_point", target_id="K2",
+                   category="ambiguity", severity="warn", note="說明不清", suggestion="補充"),
+    ])
+    dst = tmp_path / "review_kp.md"
+    write_review_report_md(
+        minutes, review, str(dst),
+        meeting_file="spec.mp4", diarization_enabled=False, speakers_detected=0,
+    )
+    text = dst.read_text(encoding="utf-8")
+    assert "1 warn / 0 error / 1 OK" in text
+    # warn section uses "重點" label
+    assert "重點 K2 — ambiguity" in text
+    assert "說明不清" in text
+    # OK section shows K1: <text>
+    assert "## ✅ OK (1)" in text
+    assert "K1: k1" in text

@@ -60,7 +60,7 @@ class MinutesAgent(LLMAgent):
             user = self.render("minutes_reduce.j2", chunk_extracts_json=sub_payload)
             mm = self.call(system=sys, user=user, response_model=MeetingMinutes)
             partials.append(
-                ChunkExtract(topics=[], conclusions=mm.conclusions, actions=mm.actions)
+                ChunkExtract(topics=[], conclusions=mm.conclusions, actions=mm.actions, key_points=mm.key_points)
             )
         return self._reduce_recursive(partials, sys=sys, max_input_chars=max_input_chars)
 
@@ -69,6 +69,8 @@ class MinutesAgent(LLMAgent):
         out: dict = {}
         for i, c in enumerate(minutes.conclusions, start=1):
             out[f"C{i}"] = c
+        for i, k in enumerate(minutes.key_points, start=1):
+            out[f"K{i}"] = k
         for i, a in enumerate(minutes.actions, start=1):
             out[f"A{i}"] = a
         return out

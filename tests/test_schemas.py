@@ -3,6 +3,7 @@ from pydantic import ValidationError
 from script.schemas import (
     Conclusion,
     Action,
+    KeyPoint,
     ChunkExtract,
     MeetingMinutes,
     ReviewNote,
@@ -75,6 +76,65 @@ def test_review_note_target_section_enum():
             note="",
             suggestion="",
         )
+
+
+def _key_point(**over):
+    base = dict(
+        text="k",
+        is_inferred=False,
+        source_quote="kq",
+        source_timestamp="00:00:03",
+        source_speaker=None,
+    )
+    base.update(over)
+    return KeyPoint(**base)
+
+
+def test_key_point_fields():
+    kp = _key_point(text="spec 項目說明", source_speaker="SPEAKER_2")
+    assert kp.text == "spec 項目說明"
+    assert kp.source_speaker == "SPEAKER_2"
+    assert not kp.is_inferred
+
+
+def test_chunk_extract_holds_key_points():
+    ce = ChunkExtract(
+        topics=["t1"],
+        conclusions=[_conclusion()],
+        actions=[_action()],
+        key_points=[_key_point()],
+    )
+    assert len(ce.key_points) == 1
+
+
+def test_chunk_extract_key_points_defaults_to_empty():
+    ce = ChunkExtract(topics=["t1"], conclusions=[_conclusion()], actions=[_action()])
+    assert ce.key_points == []
+
+
+def test_meeting_minutes_holds_key_points():
+    m = MeetingMinutes(
+        conclusions=[_conclusion()],
+        actions=[_action()],
+        key_points=[_key_point()],
+    )
+    assert len(m.key_points) == 1
+
+
+def test_meeting_minutes_key_points_defaults_to_empty():
+    m = MeetingMinutes(conclusions=[_conclusion()], actions=[_action()])
+    assert m.key_points == []
+
+
+def test_review_note_accepts_key_point_section():
+    ReviewNote(
+        target_section="key_point",
+        target_id="K1",
+        category="ok",
+        severity="info",
+        note="",
+        suggestion="",
+    )
 
 
 def test_chunk_extract_holds_topics_conclusions_actions():

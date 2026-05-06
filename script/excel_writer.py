@@ -66,6 +66,28 @@ def write_minutes_xlsx(minutes: MeetingMinutes, review: ReviewResult, dst: str) 
     # blank separator row
     next_row += 1
 
+    # ---- Section: 會議重點 ----
+    kp_headers = ["編號", "重點內容", "來源原句", "時間戳", "發言者", "Review檢查結果"]
+    _write_section_header(ws, row=next_row, title="會議重點", span=len(kp_headers))
+    _write_column_headers(ws, row=next_row + 1, headers=kp_headers)
+    next_row += 2
+    for i, k in enumerate(minutes.key_points, start=1):
+        kid = f"K{i}"
+        rev = review_ix.get(("key_point", kid))
+        text_cell = _prefix(k.text, k.is_inferred)
+        ws.cell(row=next_row, column=1, value=kid)
+        cell_text = ws.cell(row=next_row, column=2, value=text_cell)
+        if k.is_inferred:
+            cell_text.fill = _INFERRED_FILL
+        ws.cell(row=next_row, column=3, value=k.source_quote)
+        ws.cell(row=next_row, column=4, value=k.source_timestamp)
+        ws.cell(row=next_row, column=5, value=k.source_speaker or "")
+        ws.cell(row=next_row, column=6, value=_format_review(rev))
+        next_row += 1
+
+    # blank separator row
+    next_row += 1
+
     # ---- Section: Action Items ----
     act_headers = [
         "編號", "任務", "負責人", "期限", "優先度",
@@ -113,7 +135,7 @@ def write_minutes_xlsx(minutes: MeetingMinutes, review: ReviewResult, dst: str) 
     ws2 = wb.create_sheet("Review摘要")
     sum_headers = ["對應位置", "編號", "類型", "嚴重度", "說明", "建議修正"]
     _write_column_headers(ws2, row=1, headers=sum_headers)
-    sec_label = {"conclusion": "結論", "action": "Action"}
+    sec_label = {"conclusion": "結論", "key_point": "重點", "action": "Action"}
     r = 2
     for n in review.notes:
         if n.severity in ("warn", "error"):

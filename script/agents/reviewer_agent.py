@@ -20,6 +20,10 @@ class ReviewerAgent(LLMAgent):
                 {"id": f"C{i+1}", **c.model_dump()}
                 for i, c in enumerate(minutes.conclusions)
             ],
+            "key_points": [
+                {"id": f"K{i+1}", **k.model_dump()}
+                for i, k in enumerate(minutes.key_points)
+            ],
             "actions": [
                 {"id": f"A{i+1}", **a.model_dump()}
                 for i, a in enumerate(minutes.actions)

@@ -25,19 +25,29 @@ class Action(BaseModel):
     priority_inferred: bool
 
 
+class KeyPoint(BaseModel):
+    text: str
+    is_inferred: bool
+    source_quote: str
+    source_timestamp: str
+    source_speaker: str | None = None
+
+
 class ChunkExtract(BaseModel):
     topics: list[str]
     conclusions: list[Conclusion]
     actions: list[Action]
+    key_points: list[KeyPoint] = []
 
 
 class MeetingMinutes(BaseModel):
     conclusions: list[Conclusion]
     actions: list[Action]
+    key_points: list[KeyPoint] = []
 
 
 class ReviewNote(BaseModel):
-    target_section: Literal["conclusion", "action"]
+    target_section: Literal["conclusion", "action", "key_point"]
     target_id: str
     category: Literal["conflict", "ambiguity", "unreasonable", "ok"]
     severity: Literal["info", "warn", "error"]

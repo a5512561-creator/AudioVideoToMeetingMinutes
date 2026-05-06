@@ -3,6 +3,7 @@ from script.chunker import Chunk
 from script.schemas import (
     Conclusion,
     Action,
+    KeyPoint,
     ChunkExtract,
     MeetingMinutes,
 )
@@ -27,6 +28,15 @@ def _act(task="t", **over):
     )
     base.update(over)
     return Action(**base)
+
+
+def _kp(text="k", **over):
+    base = dict(
+        text=text, is_inferred=False, source_quote="kq",
+        source_timestamp="00:00:03", source_speaker=None,
+    )
+    base.update(over)
+    return KeyPoint(**base)
 
 
 def _make_agent():
@@ -88,10 +98,25 @@ def test_assign_ids_after_reduce():
     a = _make_agent()
     minutes = MeetingMinutes(
         conclusions=[_conc("c1"), _conc("c2")],
+        key_points=[_kp("k1"), _kp("k2")],
         actions=[_act("a1"), _act("a2"), _act("a3")],
     )
     ided = a.assign_ids(minutes)
     assert ided["C1"].text == "c1"
     assert ided["C2"].text == "c2"
+    assert ided["K1"].text == "k1"
+    assert ided["K2"].text == "k2"
     assert ided["A1"].task == "a1"
     assert ided["A3"].task == "a3"
+
+
+def test_assign_ids_no_key_points():
+    a = _make_agent()
+    minutes = MeetingMinutes(
+        conclusions=[_conc("c1")],
+        actions=[_act("a1")],
+    )
+    ided = a.assign_ids(minutes)
+    assert "C1" in ided
+    assert "A1" in ided
+    assert not any(k.startswith("K") for k in ided)

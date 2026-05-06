@@ -2,6 +2,7 @@ from openpyxl import load_workbook
 from script.schemas import (
     Conclusion,
     Action,
+    KeyPoint,
     MeetingMinutes,
     ReviewNote,
     ReviewResult,
@@ -25,6 +26,13 @@ def _act(task="A-task", owner="o", inferred=False, speaker=None):
         source_quote="q", source_timestamp="00:00:02", source_speaker=speaker,
         rationale="r", is_inferred=inferred, owner_inferred=False,
         due_inferred=False, priority_inferred=True,
+    )
+
+
+def _kp(text="K-text", inferred=False, speaker=None):
+    return KeyPoint(
+        text=text, is_inferred=inferred, source_quote="kq",
+        source_timestamp="00:00:03", source_speaker=speaker,
     )
 
 
@@ -97,3 +105,43 @@ def test_review_summary_sheet_contains_only_warn_or_error(tmp_path):
     all_strs = [c.value for row in ws.iter_rows() for c in row if isinstance(c.value, str)]
     assert any("C2" in s for s in all_strs)
     assert not any(isinstance(s, str) and "C1" in s for s in all_strs)
+
+
+def test_key_points_section_renders(tmp_path):
+    minutes = MeetingMinutes(
+        conclusions=[_conc(text="c1")],
+        key_points=[_kp(text="spec 說明")],
+        actions=[_act(task="a1")],
+    )
+    review = ReviewResult(notes=[
+        _ok_note("conclusion", "C1"),
+        _ok_note("key_point", "K1"),
+        _ok_note("action", "A1"),
+    ])
+    dst = tmp_path / "m.xlsx"
+    write_minutes_xlsx(minutes, review, str(dst))
+    wb = load_workbook(dst)
+    ws = wb["會議記錄"]
+    all_strs = [c.value for row in ws.iter_rows() for c in row if isinstance(c.value, str)]
+    # Section header exists
+    assert "會議重點" in all_strs
+    # K1 row text present
+    assert "K1" in all_strs
+    assert "spec 說明" in all_strs
+
+
+def test_key_point_warn_appears_in_review_summary(tmp_path):
+    minutes = MeetingMinutes(
+        conclusions=[],
+        key_points=[_kp(text="重要技術說明")],
+        actions=[],
+    )
+    review = ReviewResult(notes=[
+        _warn_note("key_point", "K1", note="說明不清楚"),
+    ])
+    dst = tmp_path / "m.xlsx"
+    write_minutes_xlsx(minutes, review, str(dst))
+    ws = load_workbook(dst)["Review摘要"]
+    all_strs = [c.value for row in ws.iter_rows() for c in row if isinstance(c.value, str)]
+    assert "重點" in all_strs  # sec_label for key_point
+    assert "K1" in all_strs

@@ -83,6 +83,9 @@ def _lookup(minutes: MeetingMinutes, n: ReviewNote):
     if n.target_section == "conclusion":
         idx = int(n.target_id[1:]) - 1
         return minutes.conclusions[idx] if 0 <= idx < len(minutes.conclusions) else None
+    if n.target_section == "key_point":
+        idx = int(n.target_id[1:]) - 1
+        return minutes.key_points[idx] if 0 <= idx < len(minutes.key_points) else None
     idx = int(n.target_id[1:]) - 1
     return minutes.actions[idx] if 0 <= idx < len(minutes.actions) else None
 
@@ -91,17 +94,22 @@ def _ok_label(n: ReviewNote, minutes: MeetingMinutes) -> str:
     item = _lookup(minutes, n)
     if item is None:
         return "(missing)"
-    if n.target_section == "conclusion":
+    if n.target_section in ("conclusion", "key_point"):
         return item.text
     return f"{item.task} ({item.owner} / {item.due})"
 
 
 def _render_note(n: ReviewNote, minutes: MeetingMinutes) -> list[str]:
     item = _lookup(minutes, n)
-    section_label = "結論" if n.target_section == "conclusion" else "Action"
+    if n.target_section == "conclusion":
+        section_label = "結論"
+    elif n.target_section == "key_point":
+        section_label = "重點"
+    else:
+        section_label = "Action"
     out = [f"### {section_label} {n.target_id} — {n.category}"]
     if item is not None:
-        if n.target_section == "conclusion":
+        if n.target_section in ("conclusion", "key_point"):
             prefix = "[LLM推論] " if item.is_inferred else ""
             out.append(f"> {prefix}{item.text}")
             sp = f", {item.source_speaker}" if item.source_speaker else ""

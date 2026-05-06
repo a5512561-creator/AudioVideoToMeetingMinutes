@@ -1,7 +1,7 @@
 以下是同一場會議切成多段後，每段個別抽取出的會議資訊。請合併為一份完整、去重、跨段串連的 MeetingMinutes JSON。
 
 合併規則：
-- 內容相同的 conclusion / action 視為同一條，合併
+- 內容相同的 conclusion / key_point / action 視為同一條，合併
 - 跨段提到同一個 task 但細節在不同段落出現（如後段才補充 due date），合併資訊
 - 保留所有 *_inferred 旗標：只要任何來源段是 inferred，合併後仍為 inferred
 - 保留來源原句：選用最完整的一句
