@@ -11,9 +11,13 @@ from script.pipeline import run_pipeline
 
 
 def _settings(tmp_path, **over):
+    # Be hermetic — don't depend on .env defaults. Tests that need
+    # diarization or correction explicitly override these.
     base = dict(
         OPENAI_API_KEY="sk-x", OPENAI_API_BASE="https://x/v1", OPENAI_MODEL="m",
         OUT_DIR=str(tmp_path / "out"), LOG_DIR=str(tmp_path / "log"),
+        ENABLE_DIARIZATION="false",
+        ENABLE_PROPER_NOUN_CORRECTION="false",
     )
     base.update(over)
     return Settings(**base)
