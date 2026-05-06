@@ -1,0 +1,5 @@
+{
+  "input": "{\"conclusions\": [{\"id\": \"C1\", \"text\": \"預算上限 500 萬\", \"is_inferred\": true, \"source_quote\": \"大概五百萬左右吧\"}], \"actions\": [{\"id\": \"A1\", \"task\": \"完成 API 規格\", \"owner\": \"小王\", \"due\": \"下週五\", \"priority\": \"high\"}]}",
+  "output": "{\"notes\": [{\"target_section\": \"conclusion\", \"target_id\": \"C1\", \"category\": \"ambiguity\", \"severity\": \"warn\", \"note\": \"「左右」一詞讓 500 萬究竟是上限或浮動範圍未明確\", \"suggestion\": \"與會者書面確認此數字含義\"}, {\"target_section\": \"action\", \"target_id\": \"A1\", \"category\": \"ok\", \"severity\": \"info\", \"note\": \"\", \"suggestion\": \"\"}]}",
+  "comment": "示範：對 ambiguity 給 warn + 修正建議；對 OK 項目仍要回一筆 info。"
+}

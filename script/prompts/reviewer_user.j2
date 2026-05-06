@@ -1,0 +1,15 @@
+{% for s in few_shots %}
+範例輸入：
+{{ s.input }}
+
+範例輸出：
+{{ s.output }}
+
+---
+{% endfor %}
+
+請審查以下會議記錄（含 ID）：
+
+{{ minutes_with_ids_json }}
+
+對每條 conclusion 與每條 action 回一筆 ReviewNote，輸出 ReviewResult JSON。
