@@ -76,18 +76,20 @@ def test_pipeline_runs_all_stages_diarization_off(
 @patch("script.pipeline.ReviewerAgent")
 @patch("script.pipeline.MinutesAgent")
 @patch("script.pipeline.chunk_transcript")
+@patch("script.pipeline.extract_speaker_samples")
 @patch("script.pipeline.diarize")
 @patch("script.pipeline.assign_speakers")
 @patch("script.pipeline.transcribe")
 @patch("script.pipeline.extract_audio")
 def test_pipeline_invokes_diarize_when_enabled(
-    extract, transcribe_m, assign_m, diarize_m, chunk_m, MAm, RAm,
+    extract, transcribe_m, assign_m, diarize_m, samples_m, chunk_m, MAm, RAm,
     write_t, write_r, write_x, tmp_path,
 ):
     settings = _settings(tmp_path, ENABLE_DIARIZATION="true", HF_TOKEN="hf_x")
     transcribe_m.return_value = [Segment(0.0, 1.0, "hi")]
     diarize_m.return_value = [SpeakerSegment(0.0, 1.0, "SPEAKER_1")]
     assign_m.return_value = [TranscribedSegment(0.0, 1.0, "hi", "SPEAKER_1")]
+    samples_m.return_value = ["s.mp3"]
     chunk_m.return_value = [MagicMock(text="x", first_timestamp="00:00:00",
                                        last_timestamp="00:00:01", token_estimate=5)]
     MAm.return_value.map_chunks.return_value = [
@@ -103,6 +105,7 @@ def test_pipeline_invokes_diarize_when_enabled(
 
     diarize_m.assert_called_once()
     assign_m.assert_called_once()
+    samples_m.assert_called_once()
 
 
 @patch("script.pipeline.write_minutes_xlsx")

@@ -18,6 +18,7 @@ from script.transcript_corrector import correct_transcript
 from script.agents.corrector_agent import CorrectorAgent
 from script.schemas import MeetingMinutes, ReviewResult
 from script import speaker_map as _spk_map
+from script.sample_extractor import extract_speaker_samples
 
 
 def _chunk_to_dict(c) -> dict:
@@ -117,6 +118,12 @@ def run_pipeline(
             )
             # Reload in case template was just created (identity mapping for full runs)
             spk_map = _spk_map.load(str(out_dir / "speaker_map.json"))
+            sample_paths = extract_speaker_samples(
+                audio_path=str(audio_path),
+                speakers=speaker_segs,
+                out_dir=str(out_dir / "speaker_samples"),
+            )
+            log_kv(logger, "INFO", "stage.speaker_samples", count=len(sample_paths))
             merged = assign_speakers(segments, speaker_segs)
             write_transcript_md(merged, str(transcript_path))
             transcript_text = transcript_path.read_text(encoding="utf-8") if transcript_path.exists() else ""
