@@ -40,6 +40,10 @@ def extract_audio(src: str, dst: str) -> None:
     Path(dst).parent.mkdir(parents=True, exist_ok=True)
     cmd = [
         ffmpeg,
+        "-nostdin",     # don't read stdin — without this, random bytes from a
+                        # piped stdin can be interpreted as 'q' (quit) and
+                        # ffmpeg silently truncates output mid-extraction
+                        # while still returning exit 0.
         "-y",
         "-i", src,
         "-vn",
@@ -48,6 +52,11 @@ def extract_audio(src: str, dst: str) -> None:
         "-c:a", "pcm_s16le",
         dst,
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,   # belt-and-suspenders for the same reason
+    )
     if proc.returncode != 0:
         raise FFmpegFailedError(proc.stderr)

@@ -1,3 +1,4 @@
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -24,6 +25,27 @@ def test_extract_audio_builds_correct_command(tmp_path):
     assert "-ar" in args and "16000" in args
     assert "-c:a" in args and "pcm_s16le" in args
     assert str(dst) in args
+
+
+def test_extract_audio_disables_stdin_to_prevent_truncation(tmp_path):
+    """Regression: without -nostdin + stdin=DEVNULL, ffmpeg can read random
+    bytes from a piped parent stdin and interpret them as 'q' (quit), silently
+    truncating output mid-extraction while still returning exit 0. We saw a
+    75-min meeting truncated to 20 min in production.
+    """
+    src = tmp_path / "in.mp4"
+    src.write_bytes(b"x")
+    dst = tmp_path / "out.wav"
+
+    with patch("script.media._find_ffmpeg", return_value="ffmpeg"), \
+         patch("script.media.subprocess.run") as run:
+        run.return_value.returncode = 0
+        run.return_value.stderr = ""
+        extract_audio(str(src), str(dst))
+
+    args = run.call_args[0][0]
+    assert "-nostdin" in args
+    assert run.call_args.kwargs["stdin"] == subprocess.DEVNULL
 
 
 def test_extract_audio_raises_when_ffmpeg_missing(tmp_path):
