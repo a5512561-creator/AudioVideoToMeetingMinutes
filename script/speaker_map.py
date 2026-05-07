@@ -5,7 +5,11 @@ in real names in speaker_map.json and re-run with --rerender to get final
 output (Excel + Markdown) with real names — without re-running ASR/LLM.
 """
 import json
+import re
 from pathlib import Path
+
+
+_LABEL_RE = re.compile(r"SPEAKER_\d+")
 
 
 def write_template(path: str, speaker_labels: list[str]) -> None:
@@ -40,3 +44,15 @@ def remap(speaker: str | None, mapping: dict[str, str]) -> str | None:
     if speaker is None:
         return None
     return mapping.get(speaker, speaker)
+
+
+def remap_text(text: str | None, mapping: dict[str, str]) -> str | None:
+    """Substitute every SPEAKER_NN occurrence inside a free-text field.
+
+    LLM-generated fields like action.owner and reviewer note/suggestion
+    occasionally embed raw SPEAKER_NN labels; this lets the writer surface
+    real names there too. Pass-through when text is None or mapping empty.
+    """
+    if text is None or not mapping:
+        return text
+    return _LABEL_RE.sub(lambda m: mapping.get(m.group(0), m.group(0)), text)

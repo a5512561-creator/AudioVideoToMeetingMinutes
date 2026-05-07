@@ -7,7 +7,7 @@ from script.schemas import (
     ReviewResult,
     ReviewNote,
 )
-from script.speaker_map import remap as _remap
+from script.speaker_map import remap as _remap, remap_text as _remap_text
 
 
 _INFERRED_PREFIX = "[LLM推論] "
@@ -24,13 +24,14 @@ def _prefix(text: str, inferred: bool) -> str:
     return f"{_INFERRED_PREFIX}{text}" if inferred else text
 
 
-def _format_review(note: ReviewNote | None) -> str:
+def _format_review(note: ReviewNote | None, sm: dict[str, str] | None = None) -> str:
     if note is None:
         return ""
     icon = _SEV_ICON.get(note.severity, "")
     if note.category == "ok":
         return f"{icon} OK"
-    return f"{icon} {note.category}：{note.note}"
+    note_text = _remap_text(note.note, sm or {})
+    return f"{icon} {note.category}：{note_text}"
 
 
 def _index_review(review: ReviewResult) -> dict[tuple[str, str], ReviewNote]:
@@ -67,7 +68,7 @@ def write_minutes_xlsx(
         ws.cell(row=next_row, column=3, value=c.source_quote)
         ws.cell(row=next_row, column=4, value=c.source_timestamp)
         ws.cell(row=next_row, column=5, value=_remap(c.source_speaker, _sm) or "")
-        ws.cell(row=next_row, column=6, value=_format_review(rev))
+        ws.cell(row=next_row, column=6, value=_format_review(rev, _sm))
         next_row += 1
 
     # blank separator row
@@ -89,7 +90,7 @@ def write_minutes_xlsx(
         ws.cell(row=next_row, column=3, value=k.source_quote)
         ws.cell(row=next_row, column=4, value=k.source_timestamp)
         ws.cell(row=next_row, column=5, value=_remap(k.source_speaker, _sm) or "")
-        ws.cell(row=next_row, column=6, value=_format_review(rev))
+        ws.cell(row=next_row, column=6, value=_format_review(rev, _sm))
         next_row += 1
 
     # blank separator row
@@ -112,7 +113,7 @@ def write_minutes_xlsx(
         if a.is_inferred:
             task_cell.fill = _INFERRED_FILL
 
-        owner_cell = ws.cell(row=next_row, column=3, value=_prefix(a.owner, a.owner_inferred))
+        owner_cell = ws.cell(row=next_row, column=3, value=_prefix(_remap_text(a.owner, _sm), a.owner_inferred))
         if a.owner_inferred:
             owner_cell.fill = _INFERRED_FILL
 
@@ -130,7 +131,7 @@ def write_minutes_xlsx(
         ws.cell(row=next_row, column=7, value=a.source_timestamp)
         ws.cell(row=next_row, column=8, value=_remap(a.source_speaker, _sm) or "")
         ws.cell(row=next_row, column=9, value=a.rationale)
-        ws.cell(row=next_row, column=10, value=_format_review(rev))
+        ws.cell(row=next_row, column=10, value=_format_review(rev, _sm))
         next_row += 1
 
     # column widths
@@ -150,8 +151,8 @@ def write_minutes_xlsx(
             ws2.cell(row=r, column=2, value=n.target_id)
             ws2.cell(row=r, column=3, value=n.category)
             ws2.cell(row=r, column=4, value=n.severity)
-            ws2.cell(row=r, column=5, value=n.note)
-            ws2.cell(row=r, column=6, value=n.suggestion)
+            ws2.cell(row=r, column=5, value=_remap_text(n.note, _sm))
+            ws2.cell(row=r, column=6, value=_remap_text(n.suggestion, _sm))
             r += 1
     for col in range(1, 7):
         ws2.column_dimensions[get_column_letter(col)].width = 22

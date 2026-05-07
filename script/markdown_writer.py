@@ -27,7 +27,7 @@ def write_transcript_md(
 
 
 from script.schemas import MeetingMinutes, ReviewResult, ReviewNote
-from script.speaker_map import remap as _remap
+from script.speaker_map import remap as _remap, remap_text as _remap_text
 
 
 def write_review_report_md(
@@ -77,7 +77,7 @@ def write_review_report_md(
     if oks:
         lines.append(f"## ✅ OK ({len(oks)})")
         for n in oks:
-            label = _ok_label(n, minutes)
+            label = _ok_label(n, minutes, _sm)
             lines.append(f"- {n.target_id}: {label}")
 
     Path(dst).write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -94,13 +94,18 @@ def _lookup(minutes: MeetingMinutes, n: ReviewNote):
     return minutes.actions[idx] if 0 <= idx < len(minutes.actions) else None
 
 
-def _ok_label(n: ReviewNote, minutes: MeetingMinutes) -> str:
+def _ok_label(
+    n: ReviewNote,
+    minutes: MeetingMinutes,
+    speaker_map: dict[str, str] | None = None,
+) -> str:
     item = _lookup(minutes, n)
     if item is None:
         return "(missing)"
+    _sm = speaker_map or {}
     if n.target_section in ("conclusion", "key_point"):
         return item.text
-    return f"{item.task} ({item.owner} / {item.due})"
+    return f"{item.task} ({_remap_text(item.owner, _sm)} / {item.due})"
 
 
 def _render_note(
@@ -126,12 +131,12 @@ def _render_note(
             out.append(f"> 來源：「{item.source_quote}」({item.source_timestamp}{sp})")
         else:
             prefix = "[LLM推論] " if item.is_inferred else ""
-            out.append(f"> {prefix}{item.task}（{item.owner} / {item.due}）")
+            out.append(f"> {prefix}{item.task}（{_remap_text(item.owner, _sm)} / {item.due}）")
             mapped_sp = _remap(item.source_speaker, _sm)
             sp = f", {mapped_sp}" if mapped_sp else ""
             out.append(f"> 來源：「{item.source_quote}」({item.source_timestamp}{sp})")
     out.append("")
-    out.append(f"**問題**：{n.note}")
-    out.append(f"**建議**：{n.suggestion}")
+    out.append(f"**問題**：{_remap_text(n.note, _sm)}")
+    out.append(f"**建議**：{_remap_text(n.suggestion, _sm)}")
     out.append("")
     return out
