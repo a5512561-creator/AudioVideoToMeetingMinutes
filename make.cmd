@@ -95,20 +95,11 @@ exit /b %ERRORLEVEL%
 exit /b %ERRORLEVEL%
 
 :run
-set "FILE=%~2"
-set "NAME=%~3"
-set "DIARIZE=%~4"
-if "%FILE%"=="" (
-    echo ERROR: FILE is required.
-    echo Usage: make run "path\to\meeting.mp4" [NAME] [DIARIZE: 0 or 1]
-    exit /b 1
-)
-set NAME_FLAG=
-if not "%NAME%"=="" set NAME_FLAG=--name %NAME%
-set DIARIZE_FLAG=
-if "%DIARIZE%"=="1" set DIARIZE_FLAG=--diarize
-if "%DIARIZE%"=="0" set DIARIZE_FLAG=--no-diarize
-%PY% -m script.main "%FILE%" %NAME_FLAG% %DIARIZE_FLAG%
+REM Delegate parsing to a Python helper — CMD's argv handling with quoted
+REM paths containing spaces and CJK breaks every batch-side parser I tried.
+REM helper is in scripts\_make_run.py and just builds + execs the python
+REM command with the right --name / --diarize flags.
+%PY% scripts\_make_run.py %*
 exit /b %ERRORLEVEL%
 
 :rerender
