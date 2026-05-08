@@ -7,6 +7,14 @@ venv/
 out/
 log/
 
+# user audio/video meeting files (proprietary content, not for public repo)
+src/
+
+# editor / IDE local config
+.claude/
+.vscode/
+.idea/
+
 # python
 __pycache__/
 *.py[cod]
