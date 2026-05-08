@@ -1,0 +1,171 @@
+@echo off
+REM Windows-native wrapper for the same workflows as the Makefile.
+REM Use this if you don't have GNU make installed.
+REM
+REM Usage:
+REM   make help
+REM   make install
+REM   make install-dev
+REM   make test
+REM   make run FILE=path\to\meeting.mp4 [NAME=...] [DIARIZE=0|1]
+REM   make rerender NAME=...
+REM   make samples NAME=...
+REM   make open NAME=...
+REM   make clean | clean-out | clean-logs | clean-all
+
+setlocal enabledelayedexpansion
+
+set PY=.venv\Scripts\python.exe
+set PIP=.venv\Scripts\pip.exe
+set PYTEST=.venv\Scripts\pytest.exe
+
+REM Parse first arg as target, rest as KEY=VALUE pairs
+set TARGET=%~1
+shift
+:parse_args
+if "%~1"=="" goto args_done
+for /f "tokens=1,2 delims==" %%A in ("%~1") do (
+    set "%%A=%%B"
+)
+shift
+goto parse_args
+:args_done
+
+if "%TARGET%"=="" goto help
+if "%TARGET%"=="help" goto help
+
+if "%TARGET%"=="install" goto install
+if "%TARGET%"=="install-dev" goto install-dev
+if "%TARGET%"=="test" goto test
+if "%TARGET%"=="test-verbose" goto test-verbose
+if "%TARGET%"=="run" goto run
+if "%TARGET%"=="rerender" goto rerender
+if "%TARGET%"=="samples" goto samples
+if "%TARGET%"=="open" goto open
+if "%TARGET%"=="clean" goto clean
+if "%TARGET%"=="clean-out" goto clean-out
+if "%TARGET%"=="clean-logs" goto clean-logs
+if "%TARGET%"=="clean-all" goto clean-all
+
+echo ERROR: unknown target "%TARGET%"
+goto help
+
+:help
+echo.
+echo Meeting Minutes pipeline — make.cmd targets
+echo.
+echo Setup:
+echo   install         Create .venv and install runtime deps
+echo   install-dev     Install runtime + test deps
+echo.
+echo Run:
+echo   test                              Run all pytest (~1 min, 96 tests)
+echo   test-verbose                      pytest with -v
+echo   run FILE=path [NAME=...] [DIARIZE=1]
+echo                                     Full pipeline. NAME defaults to FILE basename.
+echo                                     DIARIZE=1 -^> --diarize ; DIARIZE=0 -^> --no-diarize
+echo   rerender NAME=...                 Re-render outputs (^~13s, no LLM)
+echo   samples NAME=...                  Re-generate per-speaker mp3 samples
+echo   open NAME=...                     Open out\^<NAME^>\minutes.html in browser
+echo.
+echo Clean (DESTRUCTIVE):
+echo   clean        Remove pycache + .pytest_cache
+echo   clean-out    Remove out\
+echo   clean-logs   Remove log\
+echo   clean-all    All three above
+echo.
+exit /b 0
+
+:install
+python -m venv .venv
+%PIP% install -U pip
+%PIP% install -r requirements.txt
+exit /b %ERRORLEVEL%
+
+:install-dev
+python -m venv .venv
+%PIP% install -U pip
+%PIP% install -r requirements-dev.txt
+exit /b %ERRORLEVEL%
+
+:test
+%PYTEST% --tb=short
+exit /b %ERRORLEVEL%
+
+:test-verbose
+%PYTEST% -v
+exit /b %ERRORLEVEL%
+
+:run
+if "%FILE%"=="" (
+    echo ERROR: FILE is required.
+    echo Usage: make run FILE=path\to\meeting.mp4 [NAME=...] [DIARIZE=0^|1]
+    exit /b 1
+)
+set NAME_FLAG=
+if not "%NAME%"=="" set NAME_FLAG=--name %NAME%
+set DIARIZE_FLAG=
+if "%DIARIZE%"=="1" set DIARIZE_FLAG=--diarize
+if "%DIARIZE%"=="0" set DIARIZE_FLAG=--no-diarize
+%PY% -m script.main "%FILE%" %NAME_FLAG% %DIARIZE_FLAG%
+exit /b %ERRORLEVEL%
+
+:rerender
+if "%NAME%"=="" (
+    echo ERROR: NAME is required.
+    echo Usage: make rerender NAME=^<output_folder_name^>
+    exit /b 1
+)
+%PY% -m script.main "(rerender)" --name %NAME% --rerender
+exit /b %ERRORLEVEL%
+
+:samples
+if "%NAME%"=="" (
+    echo ERROR: NAME is required.
+    echo Usage: make samples NAME=^<output_folder_name^>
+    exit /b 1
+)
+if not exist "out\%NAME%\intermediate\diarization.json" (
+    echo ERROR: out\%NAME%\intermediate\diarization.json not found.
+    echo Run the pipeline with --diarize first.
+    exit /b 1
+)
+%PY% -c "import json; from pathlib import Path; from script.diarize import SpeakerSegment; from script.sample_extractor import extract_speaker_samples; b = Path('out/%NAME%'); diar = json.load(open(b/'intermediate/diarization.json', encoding='utf-8')); segs = [SpeakerSegment(**s) for s in diar]; out = extract_speaker_samples(audio_path=str(b/'intermediate/audio.wav'), speakers=segs, out_dir=str(b/'speaker_samples')); print(f'wrote {len(out)} samples to out/%NAME%/speaker_samples/')"
+exit /b %ERRORLEVEL%
+
+:open
+if "%NAME%"=="" (
+    echo ERROR: NAME is required.
+    echo Usage: make open NAME=^<output_folder_name^>
+    exit /b 1
+)
+if not exist "out\%NAME%\minutes.html" (
+    echo ERROR: out\%NAME%\minutes.html not found. Run the pipeline first.
+    exit /b 1
+)
+start "" "out\%NAME%\minutes.html"
+exit /b %ERRORLEVEL%
+
+:clean
+for /d /r . %%d in (__pycache__) do @if exist "%%d" rd /s /q "%%d"
+if exist .pytest_cache rd /s /q .pytest_cache
+if exist .mypy_cache rd /s /q .mypy_cache
+if exist .ruff_cache rd /s /q .ruff_cache
+echo Removed __pycache__ + .pytest_cache + .mypy_cache + .ruff_cache
+exit /b 0
+
+:clean-out
+if exist out rd /s /q out
+echo Removed out\  (all meeting results gone)
+exit /b 0
+
+:clean-logs
+if exist log rd /s /q log
+echo Removed log\
+exit /b 0
+
+:clean-all
+call "%~f0" clean
+call "%~f0" clean-out
+call "%~f0" clean-logs
+exit /b 0
