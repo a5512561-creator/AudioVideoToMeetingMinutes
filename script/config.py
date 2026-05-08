@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     llm_timeout_secs: int = Field(180, alias="LLM_TIMEOUT_SECS")
     llm_parallel_map: int = Field(3, alias="LLM_PARALLEL_MAP")
 
+    # === Pricing (optional; used only for cost estimate display) ===
+    # Set to your provider's per-million-tokens rates. Defaults to 0
+    # (no cost shown — only token volume reported).
+    llm_price_per_1m_input: float = Field(0.0, alias="LLM_PRICE_PER_1M_INPUT")
+    llm_price_per_1m_output: float = Field(0.0, alias="LLM_PRICE_PER_1M_OUTPUT")
+    llm_currency: str = Field("USD", alias="LLM_CURRENCY")
+
     # === I/O ===
     out_dir: str = Field("out", alias="OUT_DIR")
     log_dir: str = Field("log", alias="LOG_DIR")

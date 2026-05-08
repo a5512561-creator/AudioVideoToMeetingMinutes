@@ -94,3 +94,56 @@ def test_probe_instructor_mode_falls_back_to_json_on_error():
     fake_client.chat.completions.create.side_effect = Exception("400 unsupported")
     mode = probe_instructor_mode(fake_client, model="m")
     assert mode == "JSON"
+
+
+def test_strip_thinking_tokens_records_usage():
+    """Token usage on each completion appended to client._usage_log."""
+    from script.agents.base import _strip_thinking_tokens
+    client = MagicMock()
+    # Build a fake response with .usage
+    fake_resp = MagicMock()
+    fake_resp.choices = []
+    fake_resp.usage = MagicMock(prompt_tokens=120, completion_tokens=40, total_tokens=160)
+    client.chat.completions.create.return_value = fake_resp
+    # Reset attributes set by previous test runs
+    if hasattr(client, "_strip_thinking_installed"):
+        delattr(client, "_strip_thinking_installed")
+    if hasattr(client, "_usage_log"):
+        delattr(client, "_usage_log")
+
+    wrapped = _strip_thinking_tokens(client)
+    wrapped.chat.completions.create()
+    wrapped.chat.completions.create()
+
+    assert len(client._usage_log) == 2
+    assert client._usage_log[0] == {"prompt_tokens": 120, "completion_tokens": 40, "total_tokens": 160}
+
+
+def test_usage_summary_aggregates():
+    from script.agents.base import usage_summary
+    log = [
+        {"prompt_tokens": 100, "completion_tokens": 30, "total_tokens": 130},
+        {"prompt_tokens": 200, "completion_tokens": 50, "total_tokens": 250},
+    ]
+    s = usage_summary(log)
+    assert s == {"calls": 2, "prompt_tokens": 300, "completion_tokens": 80, "total_tokens": 380}
+
+
+def test_usage_summary_handles_empty():
+    from script.agents.base import usage_summary
+    assert usage_summary([]) == {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+
+def test_estimate_cost_simple():
+    from script.agents.base import estimate_cost
+    # GPT-4o pricing: $2.50/M input, $10/M output
+    cost = estimate_cost(1_000_000, 100_000,
+                         price_per_1m_input=2.50, price_per_1m_output=10.0)
+    # 1M * $2.50 + 100K * $10 = $2.50 + $1.00 = $3.50
+    assert abs(cost - 3.50) < 1e-9
+
+
+def test_estimate_cost_zero_when_prices_unset():
+    from script.agents.base import estimate_cost
+    assert estimate_cost(123_456, 78_910,
+                         price_per_1m_input=0.0, price_per_1m_output=0.0) == 0.0

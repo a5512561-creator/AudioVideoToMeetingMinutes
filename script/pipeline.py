@@ -11,7 +11,7 @@ from script.diarize import diarize, assign_speakers, TranscribedSegment
 from script.chunker import chunk_transcript
 from script.markdown_writer import write_transcript_md, write_review_report_md
 from script.html_writer import write_minutes_html
-from script.agents.base import probe_instructor_mode
+from script.agents.base import probe_instructor_mode, usage_summary, estimate_cost
 from script.agents.minutes_agent import MinutesAgent
 from script.agents.reviewer_agent import ReviewerAgent
 from script.transcript_corrector import correct_transcript
@@ -183,6 +183,7 @@ def run_pipeline(
         prompts_dir="script/prompts", client=client,
         model=settings.openai_model, instructor_mode=mode,
     )
+    usage_before_minutes = len(getattr(client, "_usage_log", []))
     extracts = minutes_agent.map_chunks(chunks, parallel=settings.llm_parallel_map)
     (inter_dir / "map_outputs.json").write_text(
         json.dumps([e.model_dump() for e in extracts], ensure_ascii=False),
@@ -194,22 +195,44 @@ def run_pipeline(
     (inter_dir / "minutes.json").write_text(
         minutes.model_dump_json(), encoding="utf-8",
     )
+    minutes_usage = usage_summary(getattr(client, "_usage_log", [])[usage_before_minutes:])
     log_kv(logger, "INFO", "stage.minutes",
-           conclusions=len(minutes.conclusions), actions=len(minutes.actions))
+           conclusions=len(minutes.conclusions), actions=len(minutes.actions),
+           calls=minutes_usage["calls"],
+           tokens_in=minutes_usage["prompt_tokens"],
+           tokens_out=minutes_usage["completion_tokens"])
 
     # Stage 4: Review
     reviewer = ReviewerAgent(
         prompts_dir="script/prompts", client=client,
         model=settings.openai_model, instructor_mode=mode,
     )
+    usage_before_review = len(getattr(client, "_usage_log", []))
     review = reviewer.review(minutes)
     (inter_dir / "review.json").write_text(
         review.model_dump_json(), encoding="utf-8",
     )
     warns = sum(1 for n in review.notes if n.severity == "warn")
     errors = sum(1 for n in review.notes if n.severity == "error")
+    review_usage = usage_summary(getattr(client, "_usage_log", [])[usage_before_review:])
     log_kv(logger, "INFO", "stage.review",
-           items=len(review.notes), warns=warns, errors=errors)
+           items=len(review.notes), warns=warns, errors=errors,
+           calls=review_usage["calls"],
+           tokens_in=review_usage["prompt_tokens"],
+           tokens_out=review_usage["completion_tokens"])
+
+    # Aggregate token usage + optional cost summary
+    total = usage_summary(getattr(client, "_usage_log", []))
+    cost = estimate_cost(
+        total["prompt_tokens"], total["completion_tokens"],
+        price_per_1m_input=settings.llm_price_per_1m_input,
+        price_per_1m_output=settings.llm_price_per_1m_output,
+    )
+    log_kv(logger, "INFO", "pipeline.tokens",
+           calls=total["calls"],
+           tokens_in=total["prompt_tokens"],
+           tokens_out=total["completion_tokens"],
+           cost=f"{cost:.4f}", currency=settings.llm_currency)
 
     # Outputs
     write_minutes_html(

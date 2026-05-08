@@ -17,20 +17,36 @@ _THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 
 
 def _strip_thinking_tokens(client):
-    """Wrap client.chat.completions.create to strip <think>...</think> blocks.
+    """Wrap client.chat.completions.create to strip <think>...</think> blocks
+    and record per-call token usage.
 
     Required for OSS reasoning models (gpt-oss, deepseek-r1, qwen3-thinking,
     Realtek's "medium" model) that prepend reasoning tokens to the actual JSON
     payload — Instructor's JSON parser would choke on the prefix otherwise.
+
+    Side effect: each call appends a dict to client._usage_log with
+    prompt_tokens / completion_tokens / total_tokens. Pipeline reads this to
+    aggregate per-stage and per-pipeline token totals.
 
     Idempotent: a second call is a no-op.
     """
     if getattr(client, "_strip_thinking_installed", False):
         return client
     _orig = client.chat.completions.create
+    if not hasattr(client, "_usage_log"):
+        client._usage_log = []
 
     def _create(*a, **kw):
         resp = _orig(*a, **kw)
+        # Capture token usage if present (some endpoints omit it on errors).
+        usage = getattr(resp, "usage", None)
+        if usage is not None:
+            client._usage_log.append({
+                "prompt_tokens": getattr(usage, "prompt_tokens", 0) or 0,
+                "completion_tokens": getattr(usage, "completion_tokens", 0) or 0,
+                "total_tokens": getattr(usage, "total_tokens", 0) or 0,
+            })
+        # Strip thinking tokens from content + tool_call arguments.
         for choice in getattr(resp, "choices", []):
             msg = getattr(choice, "message", None)
             if msg is None:
@@ -46,6 +62,30 @@ def _strip_thinking_tokens(client):
     client.chat.completions.create = _create
     client._strip_thinking_installed = True
     return client
+
+
+def usage_summary(usage_log: list[dict]) -> dict:
+    """Aggregate a list of per-call usage dicts into totals."""
+    return {
+        "calls": len(usage_log),
+        "prompt_tokens": sum(u.get("prompt_tokens", 0) for u in usage_log),
+        "completion_tokens": sum(u.get("completion_tokens", 0) for u in usage_log),
+        "total_tokens": sum(u.get("total_tokens", 0) for u in usage_log),
+    }
+
+
+def estimate_cost(
+    prompt_tokens: int,
+    completion_tokens: int,
+    *,
+    price_per_1m_input: float,
+    price_per_1m_output: float,
+) -> float:
+    """Cost in the configured currency (zero when prices unset)."""
+    return (
+        prompt_tokens * price_per_1m_input
+        + completion_tokens * price_per_1m_output
+    ) / 1_000_000
 
 
 class LLMAgent:
