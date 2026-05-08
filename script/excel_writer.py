@@ -60,12 +60,12 @@ def write_minutes_xlsx(
     for i, c in enumerate(minutes.conclusions, start=1):
         cid = f"C{i}"
         rev = review_ix.get(("conclusion", cid))
-        text_cell = _prefix(c.text, c.is_inferred)
+        text_cell = _prefix(_remap_text(c.text, _sm), c.is_inferred)
         ws.cell(row=next_row, column=1, value=cid)
         cell_text = ws.cell(row=next_row, column=2, value=text_cell)
         if c.is_inferred:
             cell_text.fill = _INFERRED_FILL
-        ws.cell(row=next_row, column=3, value=c.source_quote)
+        ws.cell(row=next_row, column=3, value=_remap_text(c.source_quote, _sm))
         ws.cell(row=next_row, column=4, value=c.source_timestamp)
         ws.cell(row=next_row, column=5, value=_remap(c.source_speaker, _sm) or "")
         ws.cell(row=next_row, column=6, value=_format_review(rev, _sm))
@@ -82,12 +82,12 @@ def write_minutes_xlsx(
     for i, k in enumerate(minutes.key_points, start=1):
         kid = f"K{i}"
         rev = review_ix.get(("key_point", kid))
-        text_cell = _prefix(k.text, k.is_inferred)
+        text_cell = _prefix(_remap_text(k.text, _sm), k.is_inferred)
         ws.cell(row=next_row, column=1, value=kid)
         cell_text = ws.cell(row=next_row, column=2, value=text_cell)
         if k.is_inferred:
             cell_text.fill = _INFERRED_FILL
-        ws.cell(row=next_row, column=3, value=k.source_quote)
+        ws.cell(row=next_row, column=3, value=_remap_text(k.source_quote, _sm))
         ws.cell(row=next_row, column=4, value=k.source_timestamp)
         ws.cell(row=next_row, column=5, value=_remap(k.source_speaker, _sm) or "")
         ws.cell(row=next_row, column=6, value=_format_review(rev, _sm))
@@ -109,7 +109,7 @@ def write_minutes_xlsx(
         rev = review_ix.get(("action", aid))
         ws.cell(row=next_row, column=1, value=aid)
 
-        task_cell = ws.cell(row=next_row, column=2, value=_prefix(a.task, a.is_inferred))
+        task_cell = ws.cell(row=next_row, column=2, value=_prefix(_remap_text(a.task, _sm), a.is_inferred))
         if a.is_inferred:
             task_cell.fill = _INFERRED_FILL
 
@@ -127,10 +127,10 @@ def write_minutes_xlsx(
         if a.priority_inferred:
             prio_cell.fill = _INFERRED_FILL
 
-        ws.cell(row=next_row, column=6, value=a.source_quote)
+        ws.cell(row=next_row, column=6, value=_remap_text(a.source_quote, _sm))
         ws.cell(row=next_row, column=7, value=a.source_timestamp)
         ws.cell(row=next_row, column=8, value=_remap(a.source_speaker, _sm) or "")
-        ws.cell(row=next_row, column=9, value=a.rationale)
+        ws.cell(row=next_row, column=9, value=_remap_text(a.rationale, _sm))
         ws.cell(row=next_row, column=10, value=_format_review(rev, _sm))
         next_row += 1
 

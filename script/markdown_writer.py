@@ -104,8 +104,8 @@ def _ok_label(
         return "(missing)"
     _sm = speaker_map or {}
     if n.target_section in ("conclusion", "key_point"):
-        return item.text
-    return f"{item.task} ({_remap_text(item.owner, _sm)} / {item.due})"
+        return _remap_text(item.text, _sm)
+    return f"{_remap_text(item.task, _sm)} ({_remap_text(item.owner, _sm)} / {item.due})"
 
 
 def _render_note(
@@ -125,16 +125,16 @@ def _render_note(
     if item is not None:
         if n.target_section in ("conclusion", "key_point"):
             prefix = "[LLM推論] " if item.is_inferred else ""
-            out.append(f"> {prefix}{item.text}")
+            out.append(f"> {prefix}{_remap_text(item.text, _sm)}")
             mapped_sp = _remap(item.source_speaker, _sm)
             sp = f", {mapped_sp}" if mapped_sp else ""
-            out.append(f"> 來源：「{item.source_quote}」({item.source_timestamp}{sp})")
+            out.append(f"> 來源:「{_remap_text(item.source_quote, _sm)}」({item.source_timestamp}{sp})")
         else:
             prefix = "[LLM推論] " if item.is_inferred else ""
-            out.append(f"> {prefix}{item.task}（{_remap_text(item.owner, _sm)} / {item.due}）")
+            out.append(f"> {prefix}{_remap_text(item.task, _sm)}（{_remap_text(item.owner, _sm)} / {item.due}）")
             mapped_sp = _remap(item.source_speaker, _sm)
             sp = f", {mapped_sp}" if mapped_sp else ""
-            out.append(f"> 來源：「{item.source_quote}」({item.source_timestamp}{sp})")
+            out.append(f"> 來源:「{_remap_text(item.source_quote, _sm)}」({item.source_timestamp}{sp})")
     out.append("")
     out.append(f"**問題**：{_remap_text(n.note, _sm)}")
     out.append(f"**建議**：{_remap_text(n.suggestion, _sm)}")

@@ -45,9 +45,9 @@ def _conclusion_view(c, i, rev, sm):
     speaker = _remap(c.source_speaker, sm) or ""
     return {
         "id": f"C{i}",
-        "text": c.text,
+        "text": _remap_text(c.text, sm),
         "is_inferred": c.is_inferred,
-        "source_quote": c.source_quote,
+        "source_quote": _remap_text(c.source_quote, sm),
         "source_timestamp": c.source_timestamp,
         "speaker": speaker,
         "hue": _hue(speaker) if speaker else 0,
@@ -59,9 +59,9 @@ def _keypoint_view(k, i, rev, sm):
     speaker = _remap(k.source_speaker, sm) or ""
     return {
         "id": f"K{i}",
-        "text": k.text,
+        "text": _remap_text(k.text, sm),
         "is_inferred": k.is_inferred,
-        "source_quote": k.source_quote,
+        "source_quote": _remap_text(k.source_quote, sm),
         "source_timestamp": k.source_timestamp,
         "speaker": speaker,
         "hue": _hue(speaker) if speaker else 0,
@@ -73,7 +73,7 @@ def _action_view(a, i, rev, sm):
     speaker = _remap(a.source_speaker, sm) or ""
     return {
         "id": f"A{i}",
-        "task": a.task,
+        "task": _remap_text(a.task, sm),
         "is_inferred": a.is_inferred,
         "owner": _remap_text(a.owner, sm),
         "owner_inferred": a.owner_inferred,
@@ -81,8 +81,8 @@ def _action_view(a, i, rev, sm):
         "due_inferred": a.due_inferred,
         "priority": a.priority,
         "priority_inferred": a.priority_inferred,
-        "rationale": a.rationale,
-        "source_quote": a.source_quote,
+        "rationale": _remap_text(a.rationale, sm),
+        "source_quote": _remap_text(a.source_quote, sm),
         "source_timestamp": a.source_timestamp,
         "speaker": speaker,
         "hue": _hue(speaker) if speaker else 0,
