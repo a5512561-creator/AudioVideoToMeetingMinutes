@@ -2,15 +2,19 @@
 REM Windows-native wrapper for the same workflows as the Makefile.
 REM Use this if you don't have GNU make installed.
 REM
+REM Note: Uses POSITIONAL args (Windows CMD's KEY=VALUE parsing is fragile
+REM with quoted paths containing spaces / non-ASCII). The Linux Makefile
+REM keeps the GNU make standard NAME=value style.
+REM
 REM Usage:
 REM   make help
 REM   make install
 REM   make install-dev
 REM   make test
-REM   make run FILE=path\to\meeting.mp4 [NAME=...] [DIARIZE=0|1]
-REM   make rerender NAME=...
-REM   make samples NAME=...
-REM   make open NAME=...
+REM   make run    "path\to\meeting.mp4" [NAME] [DIARIZE: 0 or 1]
+REM   make rerender NAME
+REM   make samples  NAME
+REM   make open     NAME
 REM   make clean | clean-out | clean-logs | clean-all
 
 setlocal enabledelayedexpansion
@@ -19,40 +23,29 @@ set PY=.venv\Scripts\python.exe
 set PIP=.venv\Scripts\pip.exe
 set PYTEST=.venv\Scripts\pytest.exe
 
-REM Parse first arg as target, rest as KEY=VALUE pairs
 set TARGET=%~1
-shift
-:parse_args
-if "%~1"=="" goto args_done
-for /f "tokens=1,2 delims==" %%A in ("%~1") do (
-    set "%%A=%%B"
-)
-shift
-goto parse_args
-:args_done
 
 if "%TARGET%"=="" goto help
-if "%TARGET%"=="help" goto help
-
-if "%TARGET%"=="install" goto install
-if "%TARGET%"=="install-dev" goto install-dev
-if "%TARGET%"=="test" goto test
-if "%TARGET%"=="test-verbose" goto test-verbose
-if "%TARGET%"=="run" goto run
-if "%TARGET%"=="rerender" goto rerender
-if "%TARGET%"=="samples" goto samples
-if "%TARGET%"=="open" goto open
-if "%TARGET%"=="clean" goto clean
-if "%TARGET%"=="clean-out" goto clean-out
-if "%TARGET%"=="clean-logs" goto clean-logs
-if "%TARGET%"=="clean-all" goto clean-all
+if /i "%TARGET%"=="help" goto help
+if /i "%TARGET%"=="install" goto install
+if /i "%TARGET%"=="install-dev" goto install-dev
+if /i "%TARGET%"=="test" goto test
+if /i "%TARGET%"=="test-verbose" goto test-verbose
+if /i "%TARGET%"=="run" goto run
+if /i "%TARGET%"=="rerender" goto rerender
+if /i "%TARGET%"=="samples" goto samples
+if /i "%TARGET%"=="open" goto open
+if /i "%TARGET%"=="clean" goto clean
+if /i "%TARGET%"=="clean-out" goto clean-out
+if /i "%TARGET%"=="clean-logs" goto clean-logs
+if /i "%TARGET%"=="clean-all" goto clean-all
 
 echo ERROR: unknown target "%TARGET%"
 goto help
 
 :help
 echo.
-echo Meeting Minutes pipeline — make.cmd targets
+echo Meeting Minutes pipeline -- make.cmd targets (positional args)
 echo.
 echo Setup:
 echo   install         Create .venv and install runtime deps
@@ -61,12 +54,17 @@ echo.
 echo Run:
 echo   test                              Run all pytest (~1 min, 96 tests)
 echo   test-verbose                      pytest with -v
-echo   run FILE=path [NAME=...] [DIARIZE=1]
-echo                                     Full pipeline. NAME defaults to FILE basename.
-echo                                     DIARIZE=1 -^> --diarize ; DIARIZE=0 -^> --no-diarize
-echo   rerender NAME=...                 Re-render outputs (^~13s, no LLM)
-echo   samples NAME=...                  Re-generate per-speaker mp3 samples
-echo   open NAME=...                     Open out\^<NAME^>\minutes.html in browser
+echo   run "FILE" [NAME] [DIARIZE]
+echo                                     Full pipeline. Quote FILE if it has spaces.
+echo                                     NAME defaults to FILE basename.
+echo                                     DIARIZE: 1 -^> --diarize ; 0 -^> --no-diarize
+echo                                     Examples:
+echo                                       make run "src\meeting.mp4"
+echo                                       make run "src\x.ogg" q2_planning
+echo                                       make run "src\x.mp4" q2_planning 1
+echo   rerender NAME                     Re-render outputs (^~13s, no LLM)
+echo   samples  NAME                     Re-generate per-speaker mp3 samples
+echo   open     NAME                     Open out\^<NAME^>\minutes.html in browser
 echo.
 echo Clean (DESTRUCTIVE):
 echo   clean        Remove pycache + .pytest_cache
@@ -97,9 +95,12 @@ exit /b %ERRORLEVEL%
 exit /b %ERRORLEVEL%
 
 :run
+set "FILE=%~2"
+set "NAME=%~3"
+set "DIARIZE=%~4"
 if "%FILE%"=="" (
     echo ERROR: FILE is required.
-    echo Usage: make run FILE=path\to\meeting.mp4 [NAME=...] [DIARIZE=0^|1]
+    echo Usage: make run "path\to\meeting.mp4" [NAME] [DIARIZE: 0 or 1]
     exit /b 1
 )
 set NAME_FLAG=
@@ -111,18 +112,20 @@ if "%DIARIZE%"=="0" set DIARIZE_FLAG=--no-diarize
 exit /b %ERRORLEVEL%
 
 :rerender
+set "NAME=%~2"
 if "%NAME%"=="" (
     echo ERROR: NAME is required.
-    echo Usage: make rerender NAME=^<output_folder_name^>
+    echo Usage: make rerender ^<output_folder_name^>
     exit /b 1
 )
 %PY% -m script.main "(rerender)" --name %NAME% --rerender
 exit /b %ERRORLEVEL%
 
 :samples
+set "NAME=%~2"
 if "%NAME%"=="" (
     echo ERROR: NAME is required.
-    echo Usage: make samples NAME=^<output_folder_name^>
+    echo Usage: make samples ^<output_folder_name^>
     exit /b 1
 )
 if not exist "out\%NAME%\intermediate\diarization.json" (
@@ -134,9 +137,10 @@ if not exist "out\%NAME%\intermediate\diarization.json" (
 exit /b %ERRORLEVEL%
 
 :open
+set "NAME=%~2"
 if "%NAME%"=="" (
     echo ERROR: NAME is required.
-    echo Usage: make open NAME=^<output_folder_name^>
+    echo Usage: make open ^<output_folder_name^>
     exit /b 1
 )
 if not exist "out\%NAME%\minutes.html" (

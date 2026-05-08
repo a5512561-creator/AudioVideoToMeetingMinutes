@@ -1,7 +1,15 @@
 # Meeting Minutes pipeline — common workflows.
 #
-# Requires: GNU Make + bash. On Windows, install via:
-#   - Git for Windows (ships make+bash) — recommended
+# This Makefile uses the GNU make standard KEY=VALUE syntax. On native
+# Windows cmd/PowerShell without GNU make, use ./make.cmd instead, which
+# uses POSITIONAL args (CMD's KEY=VALUE handling is fragile with quoted
+# paths containing spaces / non-ASCII characters).
+#
+#   GNU make:   make run FILE="src/x.mp4" NAME=q2 DIARIZE=1
+#   Windows:    .\make.cmd run "src\x.mp4" q2 1
+#
+# Requires (for this Makefile): GNU Make + bash. On Windows, install via:
+#   - Git for Windows (ships make+bash)
 #   - scoop install make
 #
 # Usage examples:
