@@ -10,7 +10,7 @@ from script.transcribe import transcribe, Segment
 from script.diarize import diarize, assign_speakers, TranscribedSegment
 from script.chunker import chunk_transcript
 from script.markdown_writer import write_transcript_md, write_review_report_md
-from script.excel_writer import write_minutes_xlsx
+from script.html_writer import write_minutes_html
 from script.agents.base import probe_instructor_mode
 from script.agents.minutes_agent import MinutesAgent
 from script.agents.reviewer_agent import ReviewerAgent
@@ -65,7 +65,13 @@ def run_pipeline(
         diar_was_used = (out_dir / "speaker_map.json").exists()
         speakers_detected = len({k for k in spk_map}) if diar_was_used else 0
 
-        write_minutes_xlsx(minutes, review, str(out_dir / "minutes.xlsx"), speaker_map=spk_map)
+        write_minutes_html(
+            minutes, review, str(out_dir / "minutes.html"),
+            meeting_file=src,
+            diarization_enabled=diar_was_used,
+            speakers_detected=speakers_detected,
+            speaker_map=spk_map,
+        )
         write_review_report_md(
             minutes, review, str(out_dir / "review_report.md"),
             meeting_file=src, diarization_enabled=diar_was_used,
@@ -206,7 +212,13 @@ def run_pipeline(
            items=len(review.notes), warns=warns, errors=errors)
 
     # Outputs
-    write_minutes_xlsx(minutes, review, str(out_dir / "minutes.xlsx"), speaker_map=spk_map)
+    write_minutes_html(
+        minutes, review, str(out_dir / "minutes.html"),
+        meeting_file=src,
+        diarization_enabled=diar_enabled,
+        speakers_detected=speakers_detected,
+        speaker_map=spk_map,
+    )
     write_review_report_md(
         minutes, review, str(out_dir / "review_report.md"),
         meeting_file=src,

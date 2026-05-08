@@ -32,7 +32,7 @@ def _act(): return Action(task="t", owner="o", due="d", priority="medium",
                           owner_inferred=False, due_inferred=False, priority_inferred=True)
 
 
-@patch("script.pipeline.write_minutes_xlsx")
+@patch("script.pipeline.write_minutes_html")
 @patch("script.pipeline.write_review_report_md")
 @patch("script.pipeline.write_transcript_md")
 @patch("script.pipeline.ReviewerAgent")
@@ -70,7 +70,7 @@ def test_pipeline_runs_all_stages_diarization_off(
     write_r.assert_called_once()
 
 
-@patch("script.pipeline.write_minutes_xlsx")
+@patch("script.pipeline.write_minutes_html")
 @patch("script.pipeline.write_review_report_md")
 @patch("script.pipeline.write_transcript_md")
 @patch("script.pipeline.ReviewerAgent")
@@ -108,7 +108,7 @@ def test_pipeline_invokes_diarize_when_enabled(
     samples_m.assert_called_once()
 
 
-@patch("script.pipeline.write_minutes_xlsx")
+@patch("script.pipeline.write_minutes_html")
 @patch("script.pipeline.write_review_report_md")
 @patch("script.pipeline.write_transcript_md")
 @patch("script.pipeline.ReviewerAgent")
@@ -143,7 +143,7 @@ def test_pipeline_skips_transcribe_when_cache_exists(
     write_t.assert_not_called()
 
 
-@patch("script.pipeline.write_minutes_xlsx")
+@patch("script.pipeline.write_minutes_html")
 @patch("script.pipeline.write_review_report_md")
 @patch("script.pipeline.write_transcript_md")
 @patch("script.pipeline.ReviewerAgent")
@@ -176,7 +176,7 @@ def test_pipeline_invokes_corrector_when_enabled(
     CAm.assert_called_once()
 
 
-@patch("script.pipeline.write_minutes_xlsx")
+@patch("script.pipeline.write_minutes_html")
 @patch("script.pipeline.write_review_report_md")
 def test_pipeline_rerender_only_skips_llm_and_uses_cached(
     write_r, write_x, tmp_path, monkeypatch,
