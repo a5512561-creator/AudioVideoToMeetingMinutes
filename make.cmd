@@ -11,9 +11,8 @@ REM   make help
 REM   make install
 REM   make install-dev
 REM   make test
-REM   make run    "path\to\meeting.mp4" [NAME] [DIARIZE: 0 or 1]
+REM   make run    "path\to\transcript.txt" [NAME]
 REM   make rerender NAME
-REM   make samples  NAME
 REM   make open     NAME
 REM   make clean | clean-out | clean-logs | clean-all
 
@@ -33,7 +32,6 @@ if /i "%TARGET%"=="test" goto test
 if /i "%TARGET%"=="test-verbose" goto test-verbose
 if /i "%TARGET%"=="run" goto run
 if /i "%TARGET%"=="rerender" goto rerender
-if /i "%TARGET%"=="samples" goto samples
 if /i "%TARGET%"=="open" goto open
 if /i "%TARGET%"=="clean" goto clean
 if /i "%TARGET%"=="clean-out" goto clean-out
@@ -52,18 +50,15 @@ echo   install         Create .venv and install runtime deps
 echo   install-dev     Install runtime + test deps
 echo.
 echo Run:
-echo   test                              Run all pytest (~1 min, 96 tests)
+echo   test                              Run all pytest
 echo   test-verbose                      pytest with -v
-echo   run "FILE" [NAME] [DIARIZE]
+echo   run "FILE" [NAME]
 echo                                     Full pipeline. Quote FILE if it has spaces.
 echo                                     NAME defaults to FILE basename.
-echo                                     DIARIZE: 1 -^> --diarize ; 0 -^> --no-diarize
 echo                                     Examples:
-echo                                       make run "src\meeting.mp4"
-echo                                       make run "src\x.ogg" q2_planning
-echo                                       make run "src\x.mp4" q2_planning 1
-echo   rerender NAME                     Re-render outputs (^~13s, no LLM)
-echo   samples  NAME                     Re-generate per-speaker mp3 samples
+echo                                       make run "src\transcript.txt"
+echo                                       make run "src\transcript.txt" q2_planning
+echo   rerender NAME                     Re-render outputs (no LLM)
 echo   open     NAME                     Open out\^<NAME^>\minutes.html in browser
 echo.
 echo Clean (DESTRUCTIVE):
@@ -98,7 +93,7 @@ exit /b %ERRORLEVEL%
 REM Delegate parsing to a Python helper — CMD's argv handling with quoted
 REM paths containing spaces and CJK breaks every batch-side parser I tried.
 REM helper is in scripts\_make_run.py and just builds + execs the python
-REM command with the right --name / --diarize flags.
+REM command with the right --name flags.
 %PY% scripts\_make_run.py %*
 exit /b %ERRORLEVEL%
 
@@ -109,22 +104,7 @@ if "%NAME%"=="" (
     echo Usage: make rerender ^<output_folder_name^>
     exit /b 1
 )
-%PY% -m script.main "(rerender)" --name %NAME% --rerender
-exit /b %ERRORLEVEL%
-
-:samples
-set "NAME=%~2"
-if "%NAME%"=="" (
-    echo ERROR: NAME is required.
-    echo Usage: make samples ^<output_folder_name^>
-    exit /b 1
-)
-if not exist "out\%NAME%\intermediate\diarization.json" (
-    echo ERROR: out\%NAME%\intermediate\diarization.json not found.
-    echo Run the pipeline with --diarize first.
-    exit /b 1
-)
-%PY% -c "import json; from pathlib import Path; from script.diarize import SpeakerSegment; from script.sample_extractor import extract_speaker_samples; b = Path('out/%NAME%'); diar = json.load(open(b/'intermediate/diarization.json', encoding='utf-8')); segs = [SpeakerSegment(**s) for s in diar]; out = extract_speaker_samples(audio_path=str(b/'intermediate/audio.wav'), speakers=segs, out_dir=str(b/'speaker_samples')); print(f'wrote {len(out)} samples to out/%NAME%/speaker_samples/')"
+%PY% -m script.main process "(rerender)" --name %NAME% --rerender
 exit /b %ERRORLEVEL%
 
 :open
