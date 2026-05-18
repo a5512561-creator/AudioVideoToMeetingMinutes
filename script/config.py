@@ -1,4 +1,4 @@
-from pydantic import Field, model_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,31 +14,6 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(..., alias="OPENAI_API_KEY")
     openai_api_base: str = Field(..., alias="OPENAI_API_BASE")
     openai_model: str = Field(..., alias="OPENAI_MODEL")
-
-    # === ASR ===
-    whisper_model: str = Field("large-v3", alias="WHISPER_MODEL")
-    whisper_device: str = Field("auto", alias="WHISPER_DEVICE")
-    whisper_compute_type: str = Field("auto", alias="WHISPER_COMPUTE_TYPE")
-    whisper_language: str = Field("zh", alias="WHISPER_LANGUAGE")
-    whisper_initial_prompt: str = Field(
-        "以下是繁體中文會議記錄，可能包含英文技術名詞如 API、Roadmap、Sprint。",
-        alias="WHISPER_INITIAL_PROMPT",
-    )
-    whisper_vad_filter: bool = Field(True, alias="WHISPER_VAD_FILTER")
-
-    # === Diarization (optional) ===
-    enable_diarization: bool = Field(False, alias="ENABLE_DIARIZATION")
-    hf_token: str = Field("", alias="HF_TOKEN")
-    diarization_model: str = Field(
-        # pyannote 3.1 (Apache-2.0, free): works with pyannote.audio 3.x.
-        # Community-1 (CC-BY-4.0) requires pyannote.audio 4.x which on Windows
-        # currently brings dep-hell (torchcodec/k2). Switch to Community-1 once
-        # those upstream issues are resolved.
-        "pyannote/speaker-diarization-3.1", alias="DIARIZATION_MODEL"
-    )
-    alignment_model: str = Field(
-        "jonatasgrosman/wav2vec2-large-xlsr-53-chinese-zh-cn", alias="ALIGNMENT_MODEL"
-    )
 
     # === Transcript Correction (Stage 2.95) ===
     enable_proper_noun_correction: bool = Field(False, alias="ENABLE_PROPER_NOUN_CORRECTION")
@@ -64,9 +39,3 @@ class Settings(BaseSettings):
     log_dir: str = Field("log", alias="LOG_DIR")
     log_level: str = Field("INFO", alias="LOG_LEVEL")
     keep_intermediate: bool = Field(True, alias="KEEP_INTERMEDIATE")
-
-    @model_validator(mode="after")
-    def _check_diarization_token(self):
-        if self.enable_diarization and not self.hf_token:
-            raise ValueError("HF_TOKEN is required when ENABLE_DIARIZATION=true")
-        return self
