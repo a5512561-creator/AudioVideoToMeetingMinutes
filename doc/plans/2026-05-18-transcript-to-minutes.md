@@ -749,10 +749,23 @@ git commit -m "refactor: delete audio-bound modules (media/transcribe/diarize/sa
 
 ---
 
-### Task 7: Update README
+### Task 7: Update README + repair make tooling + drop dead conftest mocks
+
+> **Scope note (added during execution):** Code review of Task 6 surfaced that
+> `Makefile`, `make.cmd`, and `scripts/_make_run.py` still invoke deleted audio
+> modules and the removed `--diarize`/`--no-diarize` flags (`make samples` is
+> outright broken — it imports `script.diarize`/`script.sample_extractor`), and
+> `tests/conftest.py` mocks `faster_whisper`/`pyannote` which nothing imports
+> anymore. These are orphaned by this refactor's deletions, so repairing them
+> is in-scope here. (`requirements.txt` still lists the heavy ASR/diarization
+> deps — intentionally left for the user to decide, out of scope.)
 
 **Files:**
 - Modify: `README.md`
+- Modify: `Makefile`
+- Modify: `make.cmd`
+- Modify: `scripts/_make_run.py`
+- Modify: `tests/conftest.py`
 
 - [ ] **Step 1: Inspect current README usage section**
 
