@@ -23,6 +23,10 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# transient run/debug artifacts
+*.log
+tmp_pytest/
+
 # OS
 .DS_Store
 Thumbs.db
