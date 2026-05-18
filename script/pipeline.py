@@ -73,7 +73,6 @@ def run_pipeline(
         return
 
     transcript_path = out_dir / "transcript.md"
-    speakers_detected = 0
 
     # Stage 1: obtain transcript.md from the user-supplied transcript file
     if force or not transcript_path.exists():
@@ -184,14 +183,14 @@ def run_pipeline(
         minutes, review, str(out_dir / "minutes.html"),
         meeting_file=src,
         diarization_enabled=False,
-        speakers_detected=speakers_detected,
+        speakers_detected=0,
         speaker_map=spk_map,
     )
     write_review_report_md(
         minutes, review, str(out_dir / "review_report.md"),
         meeting_file=src,
         diarization_enabled=False,
-        speakers_detected=speakers_detected,
+        speakers_detected=0,
         speaker_map=spk_map,
     )
     log_kv(logger, "INFO", "pipeline.done", out=str(out_dir))
