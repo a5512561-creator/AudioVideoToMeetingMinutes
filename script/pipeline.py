@@ -5,11 +5,9 @@ from openai import OpenAI
 
 from script.config import Settings
 from script.logger import setup_logger, log_kv
-from script.media import extract_audio
-from script.transcribe import transcribe, Segment
-from script.diarize import diarize, assign_speakers, TranscribedSegment
+from script.transcript_loader import load_transcript
 from script.chunker import chunk_transcript
-from script.markdown_writer import write_transcript_md, write_review_report_md
+from script.markdown_writer import write_review_report_md
 from script.html_writer import write_minutes_html
 from script.agents.base import probe_instructor_mode, usage_summary, estimate_cost
 from script.agents.minutes_agent import MinutesAgent
@@ -18,7 +16,6 @@ from script.transcript_corrector import correct_transcript
 from script.agents.corrector_agent import CorrectorAgent
 from script.schemas import MeetingMinutes, ReviewResult
 from script import speaker_map as _spk_map
-from script.sample_extractor import extract_speaker_samples
 
 
 def _chunk_to_dict(c) -> dict:
@@ -35,8 +32,6 @@ def run_pipeline(
     settings: Settings,
     name: str | None = None,
     force: bool = False,
-    skip_transcribe: bool = False,
-    diarize_override: bool | None = None,
     rerender_only: bool = False,
 ) -> None:
     base_name = name or Path(src).stem
@@ -52,7 +47,6 @@ def run_pipeline(
     spk_map = _spk_map.load(str(out_dir / "speaker_map.json"))
 
     if rerender_only:
-        # Read cached minutes + review, re-write outputs only
         minutes_path = inter_dir / "minutes.json"
         review_path = inter_dir / "review.json"
         if not minutes_path.exists() or not review_path.exists():
@@ -62,83 +56,34 @@ def run_pipeline(
             )
         minutes = MeetingMinutes.model_validate_json(minutes_path.read_text(encoding="utf-8"))
         review = ReviewResult.model_validate_json(review_path.read_text(encoding="utf-8"))
-        diar_was_used = (out_dir / "speaker_map.json").exists()
-        speakers_detected = len({k for k in spk_map}) if diar_was_used else 0
 
         write_minutes_html(
             minutes, review, str(out_dir / "minutes.html"),
             meeting_file=src,
-            diarization_enabled=diar_was_used,
-            speakers_detected=speakers_detected,
+            diarization_enabled=False,
+            speakers_detected=0,
             speaker_map=spk_map,
         )
         write_review_report_md(
             minutes, review, str(out_dir / "review_report.md"),
-            meeting_file=src, diarization_enabled=diar_was_used,
-            speakers_detected=speakers_detected, speaker_map=spk_map,
+            meeting_file=src, diarization_enabled=False,
+            speakers_detected=0, speaker_map=spk_map,
         )
         log_kv(logger, "INFO", "pipeline.done", out=str(out_dir), mode="rerender")
         return
 
-    audio_path = inter_dir / "audio.wav"
     transcript_path = out_dir / "transcript.md"
-
-    diar_enabled = (
-        diarize_override if diarize_override is not None else settings.enable_diarization
-    )
     speakers_detected = 0
 
-    # Stage 1+2 (+optional 2.5): produce transcript.md
+    # Stage 1: obtain transcript.md from the user-supplied transcript file
     if force or not transcript_path.exists():
-        if force or not audio_path.exists():
-            extract_audio(src, str(audio_path))
-            log_kv(logger, "INFO", "stage.media", output=str(audio_path))
-        if skip_transcribe and not transcript_path.exists():
-            raise RuntimeError("--skip-transcribe used but no cached transcript.md exists")
-        segments = transcribe(
-            str(audio_path),
-            model=settings.whisper_model,
-            device=settings.whisper_device,
-            compute_type=settings.whisper_compute_type,
-            language=settings.whisper_language,
-            initial_prompt=settings.whisper_initial_prompt,
-            vad_filter=settings.whisper_vad_filter,
-        )
-        log_kv(logger, "INFO", "stage.transcribe", segments=len(segments))
-
-        if diar_enabled:
-            speaker_segs = diarize(
-                str(audio_path),
-                model=settings.diarization_model,
-                hf_token=settings.hf_token,
-            )
-            speakers_detected = len({s.label for s in speaker_segs})
-            log_kv(logger, "INFO", "stage.diarize", speakers=speakers_detected)
-            (inter_dir / "diarization.json").write_text(
-                json.dumps([s.__dict__ for s in speaker_segs], ensure_ascii=False),
-                encoding="utf-8",
-            )
-            _spk_map.write_template(
-                str(out_dir / "speaker_map.json"),
-                [s.label for s in speaker_segs],
-            )
-            # Reload in case template was just created (identity mapping for full runs)
-            spk_map = _spk_map.load(str(out_dir / "speaker_map.json"))
-            sample_paths = extract_speaker_samples(
-                audio_path=str(audio_path),
-                speakers=speaker_segs,
-                out_dir=str(out_dir / "speaker_samples"),
-            )
-            log_kv(logger, "INFO", "stage.speaker_samples", count=len(sample_paths))
-            merged = assign_speakers(segments, speaker_segs)
-            write_transcript_md(merged, str(transcript_path))
-            transcript_text = transcript_path.read_text(encoding="utf-8") if transcript_path.exists() else ""
-        else:
-            write_transcript_md(segments, str(transcript_path))
-            transcript_text = transcript_path.read_text(encoding="utf-8") if transcript_path.exists() else ""
+        if not Path(src).exists():
+            raise RuntimeError(f"transcript file not found: {src}")
+        load_transcript(src, str(transcript_path))
+        log_kv(logger, "INFO", "stage.load_transcript", output=str(transcript_path))
     else:
-        log_kv(logger, "INFO", "stage.transcribe.cached", path=str(transcript_path))
-        transcript_text = transcript_path.read_text(encoding="utf-8")
+        log_kv(logger, "INFO", "stage.transcript.cached", path=str(transcript_path))
+    transcript_text = transcript_path.read_text(encoding="utf-8")
 
     # Stage 2.95: optional proper-noun correction
     if settings.enable_proper_noun_correction:
@@ -238,14 +183,14 @@ def run_pipeline(
     write_minutes_html(
         minutes, review, str(out_dir / "minutes.html"),
         meeting_file=src,
-        diarization_enabled=diar_enabled,
+        diarization_enabled=False,
         speakers_detected=speakers_detected,
         speaker_map=spk_map,
     )
     write_review_report_md(
         minutes, review, str(out_dir / "review_report.md"),
         meeting_file=src,
-        diarization_enabled=diar_enabled,
+        diarization_enabled=False,
         speakers_detected=speakers_detected,
         speaker_map=spk_map,
     )
