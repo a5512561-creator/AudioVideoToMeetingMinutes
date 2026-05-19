@@ -52,34 +52,29 @@ def run_pipeline(
     if rerender_only:
         minutes_path = inter_dir / "minutes.json"
         review_path = inter_dir / "review.json"
-        if not minutes_path.exists() or not review_path.exists():
+        synth_path = inter_dir / "synthesized.json"
+        if not minutes_path.exists() or not review_path.exists() or not synth_path.exists():
             raise RuntimeError(
-                "--rerender requires cached intermediate/minutes.json and "
-                "intermediate/review.json from a previous full run."
+                "--rerender requires cached intermediate/minutes.json, "
+                "intermediate/review.json and intermediate/synthesized.json "
+                "from a previous full run."
             )
         minutes = MeetingMinutes.model_validate_json(minutes_path.read_text(encoding="utf-8"))
         review = ReviewResult.model_validate_json(review_path.read_text(encoding="utf-8"))
+        synth = SynthesizedMinutes.model_validate_json(synth_path.read_text(encoding="utf-8"))
 
         write_minutes_html(
-            minutes, review, str(out_dir / "minutes.html"),
-            meeting_file=src,
-            diarization_enabled=False,
-            speakers_detected=0,
-            speaker_map=spk_map,
+            synth, review, str(out_dir / "minutes.html"),
+            meeting_file=src, meta=synth.meta,
         )
         write_review_report_md(
             minutes, review, str(out_dir / "review_report.md"),
             meeting_file=src, diarization_enabled=False,
             speakers_detected=0, speaker_map=spk_map,
         )
-        synth_path = inter_dir / "synthesized.json"
-        if synth_path.exists():
-            synth = SynthesizedMinutes.model_validate_json(
-                synth_path.read_text(encoding="utf-8")
-            )
-            write_email_html(
-                synth, str(out_dir / "minutes_email.html"), meeting_file=src
-            )
+        write_email_html(
+            synth, str(out_dir / "minutes_email.html"), meeting_file=src
+        )
         log_kv(logger, "INFO", "pipeline.done", out=str(out_dir), mode="rerender")
         return
 
@@ -215,11 +210,8 @@ def run_pipeline(
 
     # Outputs
     write_minutes_html(
-        minutes, review, str(out_dir / "minutes.html"),
-        meeting_file=src,
-        diarization_enabled=False,
-        speakers_detected=0,
-        speaker_map=spk_map,
+        synth, review, str(out_dir / "minutes.html"),
+        meeting_file=src, meta=meta,
     )
     write_review_report_md(
         minutes, review, str(out_dir / "review_report.md"),

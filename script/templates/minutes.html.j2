@@ -5,172 +5,48 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>會議記錄 — {{ meeting_file }}</title>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: "Noto Sans TC", "Microsoft JhengHei", Arial, sans-serif;
-      background: #f0f2f5;
-      color: #2d3748;
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 16px;
-    }
-    header {
-      background: #2d3748;
-      color: #fff;
-      border-radius: 8px;
-      padding: 20px 24px;
-      margin-bottom: 16px;
-    }
-    header h1 { font-size: 1.6rem; margin-bottom: 12px; }
-    .meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.85rem; color: #e2e8f0; }
-    .meta span { display: inline-flex; align-items: center; gap: 4px; }
-    nav.tabs {
-      display: flex; flex-wrap: wrap; gap: 4px;
-      background: #fff; border-radius: 8px;
-      padding: 8px; margin-bottom: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,.08);
-    }
-    nav.tabs button {
-      padding: 8px 16px; border: none; border-radius: 6px;
-      background: transparent; cursor: pointer;
-      font-size: 0.9rem; color: #4a5568; transition: background .15s;
-    }
-    nav.tabs button:hover { background: #edf2f7; }
-    nav.tabs button.active {
-      background: #2d3748; color: #fff; font-weight: 600;
-    }
-    .filters {
-      display: flex; flex-wrap: wrap; gap: 8px;
-      margin-bottom: 12px;
-    }
-    .filters input, .filters select {
-      padding: 8px 12px; border: 1px solid #cbd5e0;
-      border-radius: 6px; font-size: 0.9rem; background: #fff;
-      flex: 1; min-width: 180px;
-    }
-    .filters input:focus, .filters select:focus {
-      outline: 2px solid #4299e1; outline-offset: -1px;
-    }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 12px; margin-bottom: 24px;
-    }
-    .stat-card {
-      background: #fff; border-radius: 8px; padding: 16px;
-      text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.08);
-    }
-    .stat-card h3 { font-size: 2rem; color: #2d3748; }
-    .stat-card p { font-size: 0.8rem; color: #718096; margin-top: 4px; }
-    .speaker-list {
-      background: #fff; border-radius: 8px; padding: 16px;
-      box-shadow: 0 1px 3px rgba(0,0,0,.08); list-style: none;
-    }
-    .speaker-list li {
-      display: flex; align-items: center; gap: 10px;
-      padding: 6px 0; border-bottom: 1px solid #edf2f7;
-    }
-    .speaker-list li:last-child { border-bottom: none; }
-    .speaker-count { color: #718096; font-size: 0.85rem; }
-    .item {
-      background: #fff; border-radius: 8px;
-      border: 1px solid #e2e8f0;
-      padding: 14px 16px; margin-bottom: 10px;
-      transition: box-shadow .15s;
-    }
-    .item:hover { box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-    .item[hidden] { display: none !important; }
-    .item-header {
-      display: flex; flex-wrap: wrap; align-items: flex-start;
-      gap: 8px; margin-bottom: 8px;
-    }
-    .item-id {
-      font-weight: 700; font-size: 0.85rem;
-      color: #fff; background: #4a5568;
-      border-radius: 4px; padding: 2px 7px;
-      white-space: nowrap; flex-shrink: 0;
-    }
-    .item-text { flex: 1; line-height: 1.5; }
-    .item-text.inferred { background: #fff2cc; border-radius: 4px; padding: 2px 6px; }
-    .inferred-chip {
-      display: inline-block; font-size: 0.72rem; font-weight: 600;
-      color: #7d6608; background: #ffe58f; border-radius: 3px;
-      padding: 1px 5px; margin-right: 4px; vertical-align: middle;
-    }
-    .speaker-chip {
-      display: inline-flex; align-items: center;
-      font-size: 0.78rem; font-weight: 500;
-      border-radius: 999px; padding: 2px 9px;
-      white-space: nowrap; flex-shrink: 0;
-    }
-    .review-badge {
-      display: inline-flex; align-items: center; gap: 4px;
-      font-size: 0.78rem; border-radius: 999px;
-      padding: 2px 9px; white-space: nowrap; flex-shrink: 0;
-    }
-    .review-badge.info  { background: #c6f6d5; color: #276749; }
-    .review-badge.warn  { background: #fefcbf; color: #7d6608; }
-    .review-badge.error { background: #fed7d7; color: #9b2c2c; }
-    details { margin-top: 8px; }
-    details summary {
-      cursor: pointer; font-size: 0.82rem; color: #4a5568;
-      user-select: none; padding: 3px 0;
-    }
-    details summary:hover { color: #2d3748; }
-    details[open] summary { margin-bottom: 6px; }
-    .source-quote {
-      border-left: 3px solid #cbd5e0; padding: 6px 12px;
-      margin: 4px 0; font-size: 0.85rem; color: #4a5568;
-      font-style: italic;
-    }
-    .source-time { font-size: 0.78rem; color: #718096; margin-top: 2px; }
-    .action-meta {
-      display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0;
-      font-size: 0.82rem;
-    }
-    .action-meta span {
-      background: #edf2f7; border-radius: 4px; padding: 2px 8px;
-    }
-    .action-meta span.inferred-field { background: #fff2cc; }
-    .priority-high   { color: #c53030; font-weight: 600; }
-    .priority-medium { color: #b7791f; }
-    .priority-low    { color: #276749; }
-    .review-item {
-      background: #fff; border-radius: 8px; padding: 14px 16px;
-      margin-bottom: 10px; border-left: 4px solid #cbd5e0;
-    }
-    .review-item.warn  { border-left-color: #f6e05e; }
-    .review-item.error { border-left-color: #fc8181; }
-    .review-item-header {
-      display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
-      flex-wrap: wrap;
-    }
-    .review-item a { font-weight: 700; color: #2b6cb0; text-decoration: none; }
-    .review-item a:hover { text-decoration: underline; }
-    .review-cat {
-      font-size: 0.78rem; background: #edf2f7;
-      border-radius: 4px; padding: 2px 7px;
-    }
-    .review-note, .review-suggestion {
-      font-size: 0.87rem; color: #4a5568; margin-top: 4px;
-    }
-    .review-suggestion { color: #276749; }
-    .highlight-target {
-      animation: flash 1s ease-out;
-    }
-    @keyframes flash {
-      0%   { background: #bee3f8; }
-      100% { background: transparent; }
-    }
-    h2 { font-size: 1.1rem; color: #2d3748; margin: 16px 0 10px; }
-    @media (max-width: 640px) {
-      nav.tabs { gap: 2px; }
-      nav.tabs button { padding: 6px 10px; font-size: 0.82rem; }
-      .stats-grid { grid-template-columns: repeat(2, 1fr); }
-      .item-header { flex-direction: column; }
-    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:"Noto Sans TC","Microsoft JhengHei",Arial,sans-serif;background:#f0f2f5;color:#2d3748;max-width:1100px;margin:0 auto;padding:16px}
+    header{background:#2d3748;color:#fff;border-radius:8px;padding:20px 24px;margin-bottom:16px}
+    header h1{font-size:1.6rem;margin-bottom:12px}
+    .meta{display:flex;flex-wrap:wrap;gap:10px;font-size:.85rem;color:#e2e8f0}
+    nav.tabs{display:flex;flex-wrap:wrap;gap:4px;background:#fff;border-radius:8px;padding:8px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+    nav.tabs button{padding:8px 16px;border:none;border-radius:6px;background:transparent;cursor:pointer;font-size:.9rem;color:#4a5568}
+    nav.tabs button:hover{background:#edf2f7}
+    nav.tabs button.active{background:#2d3748;color:#fff;font-weight:600}
+    .filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+    .filters input{padding:8px 12px;border:1px solid #cbd5e0;border-radius:6px;font-size:.9rem;background:#fff;flex:1;min-width:200px}
+    .filters input:focus{outline:2px solid #4299e1;outline-offset:-1px}
+    .tab-panel{display:none}
+    .tab-panel.active{display:block}
+    .topic{background:#fff;border-radius:8px;border:1px solid #e2e8f0;padding:16px;margin-bottom:12px}
+    .topic[hidden]{display:none!important}
+    .topic h3{font-size:1.05rem;color:#2d3748;margin-bottom:6px}
+    .topic .summary{line-height:1.6;margin-bottom:8px}
+    .topic ul{margin:6px 0 6px 22px}
+    .topic li{margin:3px 0}
+    .src{font-size:.78rem;color:#718096;margin-top:6px}
+    table{width:100%;border-collapse:collapse;background:#fff;font-size:.9rem}
+    th,td{border:1px solid #e2e8f0;padding:8px 10px;text-align:left;vertical-align:top}
+    th{background:#edf2f7}
+    tr[hidden]{display:none!important}
+    .pri-btns{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+    .pri-btns button{padding:6px 12px;border:1px solid #cbd5e0;border-radius:6px;background:#fff;cursor:pointer;font-size:.85rem}
+    .pri-btns button.active{background:#2d3748;color:#fff;border-color:#2d3748}
+    .p-high{color:#c53030;font-weight:600}
+    .p-medium{color:#b7791f}
+    .p-low{color:#276749}
+    .disclaimer{background:#fffbea;border:1px solid #f6e05e;border-radius:6px;padding:10px 14px;font-size:.85rem;color:#7d6608;margin-bottom:12px}
+    .rev{background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:10px;border-left:4px solid #cbd5e0}
+    .rev[hidden]{display:none!important}
+    .rev.warn{border-left-color:#f6e05e}
+    .rev.error{border-left-color:#fc8181}
+    .rev-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;font-weight:600}
+    .rev-cat{font-size:.78rem;background:#edf2f7;border-radius:4px;padding:2px 7px;font-weight:400}
+    .rev-note,.rev-sug{font-size:.87rem;color:#4a5568;margin-top:3px}
+    .rev-sug{color:#276749}
+    .empty{color:#718096;padding:16px}
+    h2{font-size:1.05rem;margin:4px 0 10px}
   </style>
 </head>
 <body>
@@ -178,221 +54,110 @@
     <h1>會議記錄</h1>
     <div class="meta">
       <span>📁 {{ meeting_file }}</span>
-      <span>🎙 Diarization: {% if diarization_enabled %}enabled{% if speakers_detected > 0 %} ({{ speakers_detected }} speakers){% endif %}{% else %}disabled{% endif %}</span>
-      <span>📊 {{ n_conclusions }} 結論 / {{ n_keypoints }} 重點 / {{ n_actions }} Actions</span>
+      <span>📅 {{ meta.meeting_date }}</span>
+      <span>⏱ {{ meta.duration_hint }}</span>
+      <span>📊 {{ n_topics }} 議題 / {{ n_decisions }} 決議 / {{ n_actions }} Action</span>
       <span>⚠️ {{ n_warns }} warn / ❌ {{ n_errors }} error</span>
     </div>
   </header>
 
   <nav class="tabs" role="tablist">
-    <button data-tab="overview"     class="active" role="tab">概覽</button>
-    <button data-tab="conclusions"  role="tab">會議結論 ({{ n_conclusions }})</button>
-    <button data-tab="keypoints"    role="tab">會議重點 ({{ n_keypoints }})</button>
-    <button data-tab="actions"      role="tab">Action Items ({{ n_actions }})</button>
-    <button data-tab="review"       role="tab">Review 摘要 ({{ n_warns + n_errors }})</button>
+    <button data-tab="topics" class="active" role="tab">議題與決議 ({{ n_topics }})</button>
+    <button data-tab="actions" role="tab">Action Items ({{ n_actions }})</button>
+    <button data-tab="review" role="tab">Review ({{ n_warns + n_errors }})</button>
   </nav>
 
   <div class="filters">
-    <input type="search" id="search" placeholder="搜尋... (在當前 tab 內過濾)" aria-label="搜尋">
-    <select id="speaker-filter" aria-label="Speaker 過濾">
-      <option value="">所有 speaker</option>
-      {% for name, count, hue in speakers %}
-      <option value="{{ name }}">{{ name }} ({{ count }})</option>
-      {% endfor %}
-    </select>
+    <input type="search" id="search" placeholder="搜尋…（在目前分頁內過濾）" aria-label="搜尋">
   </div>
 
   <main>
-    <!-- ===== OVERVIEW ===== -->
-    <section id="overview" class="tab-panel active" role="tabpanel">
-      <div class="stats-grid">
-        <div class="stat-card"><h3>{{ n_conclusions }}</h3><p>會議結論</p></div>
-        <div class="stat-card"><h3>{{ n_keypoints }}</h3><p>會議重點</p></div>
-        <div class="stat-card"><h3>{{ n_actions }}</h3><p>Action Items</p></div>
-        <div class="stat-card"><h3 style="color:#276749">{{ n_oks }}</h3><p>Review OK</p></div>
-        <div class="stat-card"><h3 style="color:#b7791f">{{ n_warns }}</h3><p>Review Warn</p></div>
-        <div class="stat-card"><h3 style="color:#c53030">{{ n_errors }}</h3><p>Review Error</p></div>
-      </div>
-      {% if speakers %}
-      <h2>各 Speaker 發言量</h2>
-      <ul class="speaker-list">
-        {% for name, count, hue in speakers %}
-        <li>
-          <span class="speaker-chip" style="background:hsl({{ hue }},60%,80%);">{{ name }}</span>
-          <span class="speaker-count">{{ count }} 則</span>
-        </li>
-        {% endfor %}
-      </ul>
-      {% endif %}
-    </section>
-
-    <!-- ===== CONCLUSIONS ===== -->
-    <section id="conclusions" class="tab-panel" role="tabpanel">
-      {% if conclusions %}
-      {% for c in conclusions %}
-      <article class="item" data-speaker="{{ c.speaker }}" id="{{ c.id }}">
-        <div class="item-header">
-          <span class="item-id">{{ c.id }}</span>
-          <span class="item-text{% if c.is_inferred %} inferred{% endif %}">
-            {% if c.is_inferred %}<span class="inferred-chip">LLM推論</span>{% endif %}{{ c.text }}
-          </span>
-          {% if c.speaker %}
-          <span class="speaker-chip" style="background:hsl({{ c.hue }},60%,80%);">{{ c.speaker }}</span>
-          {% endif %}
-          {% if c.review_badge %}
-          <span class="review-badge {{ c.review_badge.severity }}">{{ c.review_badge.icon }} {{ c.review_badge.label }}</span>
-          {% endif %}
-        </div>
-        <details>
-          <summary>來源 / 時間戳</summary>
-          <blockquote class="source-quote">「{{ c.source_quote }}」</blockquote>
-          <p class="source-time">⏱ {{ c.source_timestamp }}</p>
-        </details>
+    <section id="topics" class="tab-panel active" role="tabpanel">
+      {% if topics %}
+      {% for t in topics %}
+      <article class="topic searchable">
+        <h3>{{ t.title }}</h3>
+        <p class="summary">{{ t.summary }}</p>
+        {% if t.decisions %}
+        <b>決議：</b>
+        <ul>{% for d in t.decisions %}<li>{{ d }}</li>{% endfor %}</ul>
+        {% endif %}
+        {% if t.source_timestamps %}
+        <p class="src">⏱ {{ t.source_timestamps | join(', ') }}</p>
+        {% endif %}
       </article>
       {% endfor %}
-      {% else %}
-      <p style="color:#718096;padding:16px">無結論項目</p>
-      {% endif %}
+      {% else %}<p class="empty">無議題</p>{% endif %}
     </section>
 
-    <!-- ===== KEY POINTS ===== -->
-    <section id="keypoints" class="tab-panel" role="tabpanel">
-      {% if key_points %}
-      {% for k in key_points %}
-      <article class="item" data-speaker="{{ k.speaker }}" id="{{ k.id }}">
-        <div class="item-header">
-          <span class="item-id">{{ k.id }}</span>
-          <span class="item-text{% if k.is_inferred %} inferred{% endif %}">
-            {% if k.is_inferred %}<span class="inferred-chip">LLM推論</span>{% endif %}{{ k.text }}
-          </span>
-          {% if k.speaker %}
-          <span class="speaker-chip" style="background:hsl({{ k.hue }},60%,80%);">{{ k.speaker }}</span>
-          {% endif %}
-          {% if k.review_badge %}
-          <span class="review-badge {{ k.review_badge.severity }}">{{ k.review_badge.icon }} {{ k.review_badge.label }}</span>
-          {% endif %}
-        </div>
-        <details>
-          <summary>來源 / 時間戳</summary>
-          <blockquote class="source-quote">「{{ k.source_quote }}」</blockquote>
-          <p class="source-time">⏱ {{ k.source_timestamp }}</p>
-        </details>
-      </article>
-      {% endfor %}
-      {% else %}
-      <p style="color:#718096;padding:16px">無重點項目</p>
-      {% endif %}
-    </section>
-
-    <!-- ===== ACTIONS ===== -->
     <section id="actions" class="tab-panel" role="tabpanel">
       {% if actions %}
-      {% for a in actions %}
-      <article class="item" data-speaker="{{ a.speaker }}" id="{{ a.id }}">
-        <div class="item-header">
-          <span class="item-id">{{ a.id }}</span>
-          <span class="item-text{% if a.is_inferred %} inferred{% endif %}">
-            {% if a.is_inferred %}<span class="inferred-chip">LLM推論</span>{% endif %}{{ a.task }}
-          </span>
-          {% if a.speaker %}
-          <span class="speaker-chip" style="background:hsl({{ a.hue }},60%,80%);">{{ a.speaker }}</span>
-          {% endif %}
-          {% if a.review_badge %}
-          <span class="review-badge {{ a.review_badge.severity }}">{{ a.review_badge.icon }} {{ a.review_badge.label }}</span>
-          {% endif %}
-        </div>
-        <div class="action-meta">
-          <span class="{% if a.owner_inferred %}inferred-field{% endif %}">👤 {{ a.owner }}</span>
-          <span class="{% if a.due_inferred %}inferred-field{% endif %}">📅 {{ a.due }}</span>
-          <span class="{% if a.priority_inferred %}inferred-field{% endif %} priority-{{ a.priority }}">⚡ {{ a.priority }}</span>
-          {% if a.rationale %}<span>💡 {{ a.rationale }}</span>{% endif %}
-        </div>
-        <details>
-          <summary>來源 / 時間戳</summary>
-          <blockquote class="source-quote">「{{ a.source_quote }}」</blockquote>
-          <p class="source-time">⏱ {{ a.source_timestamp }}</p>
-        </details>
-      </article>
-      {% endfor %}
-      {% else %}
-      <p style="color:#718096;padding:16px">無 Action 項目</p>
-      {% endif %}
+      <div class="pri-btns">
+        <button data-pri="" class="active">全部</button>
+        <button data-pri="high">高</button>
+        <button data-pri="medium">中</button>
+        <button data-pri="low">低</button>
+      </div>
+      <table>
+        <tr><th>#</th><th>任務</th><th>負責人</th><th>期限</th><th>優先級</th></tr>
+        {% for a in actions %}
+        <tr class="searchable" data-priority="{{ a.priority }}">
+          <td>{{ a.idx }}</td>
+          <td>{{ a.task }}</td>
+          <td>{{ a.owner }}</td>
+          <td>{{ a.due }}</td>
+          <td class="p-{{ a.priority }}">{{ {'high':'高','medium':'中','low':'低'}[a.priority] }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}<p class="empty">無 Action 項目</p>{% endif %}
     </section>
 
-    <!-- ===== REVIEW ===== -->
     <section id="review" class="tab-panel" role="tabpanel">
-      {% if review_summary %}
-      {% for n in review_summary %}
-      <article class="review-item {{ n.severity }}">
-        <div class="review-item-header">
-          <span class="review-badge {{ n.severity }}">{{ n.icon }}</span>
-          <a href="#{{ n.id }}">{{ n.section }} {{ n.id }}</a>
-          <span class="review-cat">{{ n.category }}</span>
-        </div>
-        {% if n.note %}<p class="review-note">{{ n.note }}</p>{% endif %}
-        {% if n.suggestion %}<p class="review-suggestion">建議：{{ n.suggestion }}</p>{% endif %}
+      <div class="disclaimer">以下為詳細審查階段針對<b>原始抽取項目</b>標記的品質警示，供交叉檢查；不與上方綜整議題逐項對應。</div>
+      {% if review_rows %}
+      {% for n in review_rows %}
+      <article class="rev {{ n.severity }} searchable">
+        <div class="rev-head">{{ n.icon }} {{ n.section }} {{ n.id }} <span class="rev-cat">{{ n.category }}</span></div>
+        {% if n.note %}<p class="rev-note">{{ n.note }}</p>{% endif %}
+        {% if n.suggestion %}<p class="rev-sug">建議：{{ n.suggestion }}</p>{% endif %}
       </article>
       {% endfor %}
-      {% else %}
-      <p style="color:#276749;padding:16px">✅ 無 warn / error 項目</p>
-      {% endif %}
+      {% else %}<p class="empty">✅ 無 warn / error 項目</p>{% endif %}
     </section>
   </main>
 
   <script>
-    (function () {
-      // Tab switching
-      var tabs = document.querySelectorAll('nav.tabs button');
-      var panels = document.querySelectorAll('.tab-panel');
-      tabs.forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var target = btn.dataset.tab;
-          tabs.forEach(function (b) { b.classList.remove('active'); });
-          btn.classList.add('active');
-          panels.forEach(function (p) {
-            p.classList.toggle('active', p.id === target);
-          });
-          applyFilters();
-        });
-      });
-
-      // Filter logic (speaker + search applied to active panel)
-      var searchInput = document.getElementById('search');
-      var speakerSel  = document.getElementById('speaker-filter');
-
-      function applyFilters() {
-        var query   = searchInput.value.trim().toLowerCase();
-        var speaker = speakerSel.value;
-        var active  = document.querySelector('.tab-panel.active');
-        if (!active) return;
-        active.querySelectorAll('.item').forEach(function (item) {
-          var matchSp = !speaker || item.dataset.speaker === speaker;
-          var matchQ  = !query  || item.textContent.toLowerCase().includes(query);
-          item.hidden = !(matchSp && matchQ);
+    (function(){
+      var tabs=document.querySelectorAll('nav.tabs button');
+      var panels=document.querySelectorAll('.tab-panel');
+      tabs.forEach(function(b){b.addEventListener('click',function(){
+        tabs.forEach(function(x){x.classList.remove('active')});
+        b.classList.add('active');
+        panels.forEach(function(p){p.classList.toggle('active',p.id===b.dataset.tab)});
+        applyFilters();
+      })});
+      var search=document.getElementById('search');
+      var pri='';
+      function applyFilters(){
+        var q=search.value.trim().toLowerCase();
+        var active=document.querySelector('.tab-panel.active');
+        if(!active)return;
+        active.querySelectorAll('.searchable').forEach(function(el){
+          var okQ=!q||el.textContent.toLowerCase().indexOf(q)>=0;
+          var okP=true;
+          if(active.id==='actions'&&pri){okP=el.getAttribute('data-priority')===pri;}
+          el.hidden=!(okQ&&okP);
         });
       }
-
-      searchInput.addEventListener('input', applyFilters);
-      speakerSel.addEventListener('change', applyFilters);
-
-      // Anchor scroll + highlight
-      document.addEventListener('click', function (e) {
-        var link = e.target.closest('a[href^="#"]');
-        if (!link) return;
-        var id  = link.getAttribute('href').slice(1);
-        var el  = document.getElementById(id);
-        if (!el) return;
-        // Switch to correct tab if needed
-        var panel = el.closest('.tab-panel');
-        if (panel && !panel.classList.contains('active')) {
-          var tabBtn = document.querySelector('[data-tab="' + panel.id + '"]');
-          if (tabBtn) tabBtn.click();
-        }
-        setTimeout(function () {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          el.classList.add('highlight-target');
-          setTimeout(function () { el.classList.remove('highlight-target'); }, 1200);
-        }, 50);
+      search.addEventListener('input',applyFilters);
+      document.querySelectorAll('.pri-btns button').forEach(function(b){
+        b.addEventListener('click',function(){
+          document.querySelectorAll('.pri-btns button').forEach(function(x){x.classList.remove('active')});
+          b.classList.add('active');
+          pri=b.dataset.pri;
+          applyFilters();
+        });
       });
     }());
   </script>

@@ -1,166 +1,119 @@
 import re
 from script.schemas import (
-    Conclusion, Action, KeyPoint, MeetingMinutes,
-    ReviewNote, ReviewResult,
+    SynthesizedMinutes, SynthTopic, SynthAction, SourceRef,
+    MeetingMeta, ReviewNote, ReviewResult,
 )
 from script.html_writer import write_minutes_html
 
 
-def _conc(text="C-text", inferred=False, speaker=None):
-    return Conclusion(
-        text=text, is_inferred=inferred, source_quote="src-c",
-        source_timestamp="00:01:00", source_speaker=speaker,
+def _synth(**over):
+    base = dict(
+        meta=MeetingMeta(meeting_date="2026/05/18",
+                         duration_hint="逐字稿長度約 1h 55m"),
+        topics=[SynthTopic(title="KPI / KTR 訂定方式",
+                            summary="討論 KPI 是否納入考核。",
+                            decisions=["KPI 不納入考核", "兩週後帶 KTR 公式"],
+                            source_timestamps=["00:05:50"])],
+        action_items=[SynthAction(task="各團隊試算 KTR 公式", owner="各團隊",
+                                  due="兩週後", priority="high",
+                                  source_timestamps=["00:01:27"]),
+                      SynthAction(task="更新 wiki", owner="未明",
+                                  due="未明", priority="low",
+                                  source_timestamps=["00:30:00"])],
+        source_index=[SourceRef(label="決議 1", timestamps=["00:05:50"])],
     )
+    base.update(over)
+    return SynthesizedMinutes(**base)
 
 
-def _kp(text="K-text", inferred=False, speaker=None):
-    return KeyPoint(
-        text=text, is_inferred=inferred, source_quote="src-k",
-        source_timestamp="00:02:00", source_speaker=speaker,
-    )
-
-
-def _act(task="A-task", owner="o", inferred=False, speaker=None):
-    return Action(
-        task=task, owner=owner, due="2026-05-15", priority="high",
-        source_quote="src-a", source_timestamp="00:03:00", source_speaker=speaker,
-        rationale="r", is_inferred=inferred, owner_inferred=False,
-        due_inferred=False, priority_inferred=True,
-    )
-
-
-def _ok_note(section, tid):
+def _warn(section="conclusion", tid="C2", note="語意模糊"):
     return ReviewNote(target_section=section, target_id=tid,
+                      category="ambiguity", severity="warn",
+                      note=note, suggestion="請確認")
+
+
+def _ok():
+    return ReviewNote(target_section="conclusion", target_id="C1",
                       category="ok", severity="info", note="", suggestion="")
 
 
-def _warn_note(section, tid, note="msg"):
-    return ReviewNote(target_section=section, target_id=tid,
-                      category="ambiguity", severity="warn", note=note, suggestion="fix")
-
-
-def test_html_contains_all_sections(tmp_path):
-    minutes = MeetingMinutes(
-        conclusions=[_conc("c1")],
-        key_points=[_kp("k1")],
-        actions=[_act("a1")],
-    )
-    review = ReviewResult(notes=[
-        _ok_note("conclusion", "C1"),
-        _ok_note("key_point", "K1"),
-        _ok_note("action", "A1"),
-    ])
+def test_html_has_three_tabs_and_header(tmp_path):
     dst = tmp_path / "m.html"
-    write_minutes_html(
-        minutes, review, str(dst),
-        meeting_file="meeting.mp4",
-        diarization_enabled=False, speakers_detected=0,
-    )
-    text = dst.read_text(encoding="utf-8")
-    assert "<!DOCTYPE html>" in text
-    assert "c1" in text and "k1" in text and "a1" in text
-    assert 'data-tab="conclusions"' in text
-    assert 'data-tab="keypoints"' in text
-    assert 'data-tab="actions"' in text
-    assert 'data-tab="review"' in text
+    write_minutes_html(_synth(), ReviewResult(notes=[_ok()]), str(dst),
+                       meeting_file=r"D:\m\x.txt",
+                       meta=MeetingMeta(meeting_date="2026/05/18",
+                                        duration_hint="逐字稿長度約 1h 55m"))
+    t = dst.read_text(encoding="utf-8")
+    assert "<!DOCTYPE html>" in t
+    assert 'data-tab="topics"' in t
+    assert 'data-tab="actions"' in t
+    assert 'data-tab="review"' in t
+    assert 'data-tab="conclusions"' not in t and 'data-tab="keypoints"' not in t
+    assert "2026/05/18" in t
+    assert "逐字稿長度約 1h 55m" in t
+    assert "x.txt" in t
+    assert "1 議題" in t and "2 決議" in t and "2 Action" in t
 
 
-def test_inferred_items_get_marker(tmp_path):
-    minutes = MeetingMinutes(
-        conclusions=[_conc("inferred c", inferred=True)],
-        key_points=[],
-        actions=[],
-    )
-    review = ReviewResult(notes=[_ok_note("conclusion", "C1")])
+def test_topics_tab_renders_title_summary_decisions(tmp_path):
     dst = tmp_path / "m.html"
-    write_minutes_html(
-        minutes, review, str(dst),
-        meeting_file="x", diarization_enabled=False, speakers_detected=0,
-    )
-    text = dst.read_text(encoding="utf-8")
-    assert "[LLM推論]" in text or "LLM推論" in text  # inferred marker
+    write_minutes_html(_synth(), ReviewResult(notes=[]), str(dst),
+                       meeting_file="x")
+    t = dst.read_text(encoding="utf-8")
+    assert "KPI / KTR 訂定方式" in t
+    assert "討論 KPI 是否納入考核。" in t
+    assert "KPI 不納入考核" in t and "兩週後帶 KTR 公式" in t
+    assert "00:05:50" in t
 
 
-def test_speaker_map_substitutes_in_html(tmp_path):
-    minutes = MeetingMinutes(
-        conclusions=[_conc("c1", speaker="SPEAKER_00")],
-        key_points=[],
-        actions=[_act("a1", speaker="SPEAKER_01")],
-    )
-    review = ReviewResult(notes=[
-        _ok_note("conclusion", "C1"),
-        _ok_note("action", "A1"),
-    ])
+def test_actions_tab_table_and_priority_filter(tmp_path):
     dst = tmp_path / "m.html"
-    write_minutes_html(
-        minutes, review, str(dst),
-        meeting_file="x", diarization_enabled=True, speakers_detected=2,
-        speaker_map={"SPEAKER_00": "Albert", "SPEAKER_01": "John"},
-    )
-    text = dst.read_text(encoding="utf-8")
-    assert "Albert" in text
-    assert "John" in text
-    assert "SPEAKER_00" not in text
-    assert "SPEAKER_01" not in text
+    write_minutes_html(_synth(), ReviewResult(notes=[]), str(dst),
+                       meeting_file="x")
+    t = dst.read_text(encoding="utf-8")
+    assert "<table" in t
+    assert "各團隊試算 KTR 公式" in t and "更新 wiki" in t
+    assert 'data-priority="high"' in t and 'data-priority="low"' in t
+    assert "高" in t and "低" in t
 
 
-def test_review_summary_only_shows_warn_and_error(tmp_path):
-    minutes = MeetingMinutes(
-        conclusions=[_conc("c1"), _conc("c2")],
-        key_points=[],
-        actions=[],
-    )
-    review = ReviewResult(notes=[
-        _ok_note("conclusion", "C1"),
-        _warn_note("conclusion", "C2", note="模糊"),
-    ])
+def test_review_tab_shows_warn_with_disclaimer(tmp_path):
     dst = tmp_path / "m.html"
-    write_minutes_html(
-        minutes, review, str(dst),
-        meeting_file="x", diarization_enabled=False, speakers_detected=0,
-    )
-    text = dst.read_text(encoding="utf-8")
-    # C1 is OK — should NOT appear in review section, but C2 should
-    review_match = re.search(r'<section id="review".*?</section>', text, re.DOTALL)
-    assert review_match
-    review_html = review_match.group(0)
-    assert "模糊" in review_html
-    assert "#C2" in review_html  # anchor link
+    write_minutes_html(_synth(), ReviewResult(notes=[_ok(), _warn(note="模糊點")]),
+                       str(dst), meeting_file="x")
+    t = dst.read_text(encoding="utf-8")
+    rev = re.search(r'<section id="review".*?</section>', t, re.DOTALL).group(0)
+    assert "原始抽取項目" in rev
+    assert "模糊點" in rev
+    assert "請確認" in rev
+    assert rev.count("C1") == 0
 
 
-def test_owner_remap_via_remap_text(tmp_path):
-    # action.owner is a free-text field; LLM may put SPEAKER_NN there
-    minutes = MeetingMinutes(
-        conclusions=[],
-        key_points=[],
-        actions=[_act("a1", owner="SPEAKER_01")],
-    )
-    review = ReviewResult(notes=[_ok_note("action", "A1")])
+def test_no_speaker_or_source_quote_remnants(tmp_path):
     dst = tmp_path / "m.html"
-    write_minutes_html(
-        minutes, review, str(dst),
-        meeting_file="x", diarization_enabled=True, speakers_detected=1,
-        speaker_map={"SPEAKER_01": "John"},
-    )
-    text = dst.read_text(encoding="utf-8")
-    assert "John" in text
-    assert "SPEAKER_01" not in text
+    write_minutes_html(_synth(), ReviewResult(notes=[]), str(dst),
+                       meeting_file="x")
+    t = dst.read_text(encoding="utf-8")
+    assert "speaker" not in t.lower()
+    assert "SPEAKER_" not in t
+    assert "source_quote" not in t
+    assert "來源原句" not in t
 
 
-def test_html_is_self_contained_no_external_assets(tmp_path):
-    minutes = MeetingMinutes(conclusions=[_conc("c1")], key_points=[], actions=[])
-    review = ReviewResult(notes=[_ok_note("conclusion", "C1")])
+def test_meta_fallback_when_none(tmp_path):
+    s = _synth(meta=None)
     dst = tmp_path / "m.html"
-    write_minutes_html(
-        minutes, review, str(dst),
-        meeting_file="x", diarization_enabled=False, speakers_detected=0,
-    )
-    text = dst.read_text(encoding="utf-8")
-    # No CDN includes
-    assert "cdn." not in text.lower()
-    assert "//unpkg" not in text
-    # No relative <link href="..."> for external CSS
-    assert '<link rel="stylesheet" href' not in text
-    # Inline style + script blocks present
-    assert "<style>" in text
-    assert "<script>" in text
+    write_minutes_html(s, ReviewResult(notes=[]), str(dst), meeting_file="x")
+    t = dst.read_text(encoding="utf-8")
+    assert "YYYY/MM/DD" in t and "逐字稿長度未知" in t
+
+
+def test_html_self_contained_and_escapes(tmp_path):
+    s = _synth()
+    s.topics[0].summary = "風險 <b>注意</b> & 風控"
+    dst = tmp_path / "m.html"
+    write_minutes_html(s, ReviewResult(notes=[]), str(dst), meeting_file="x")
+    t = dst.read_text(encoding="utf-8")
+    assert "cdn." not in t.lower() and "//unpkg" not in t
+    assert "<style>" in t and "<script>" in t
+    assert "&lt;b&gt;" in t and "&amp;" in t

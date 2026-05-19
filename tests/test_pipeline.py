@@ -75,8 +75,6 @@ def test_pipeline_runs_from_transcript(
     load_m.assert_called_once()
     write_x.assert_called_once()
     write_r.assert_called_once()
-    assert write_x.call_args.kwargs["diarization_enabled"] is False
-    assert write_x.call_args.kwargs["speakers_detected"] == 0
 
 
 @patch("script.pipeline.write_minutes_html")
@@ -157,31 +155,28 @@ def test_pipeline_invokes_corrector_when_enabled(
 @patch("script.pipeline.write_minutes_html")
 @patch("script.pipeline.write_review_report_md")
 @patch("script.pipeline.write_email_html")
-def test_pipeline_rerender_only_skips_llm_and_uses_cached(
-    write_email, write_r, write_x, tmp_path,
-):
+def test_rerender_uses_all_three_caches(write_email, write_r, write_x, tmp_path):
+    from script.schemas import SynthesizedMinutes, SynthTopic
     settings = _settings(tmp_path)
     out_dir = Path(settings.out_dir) / "t"
-    inter_dir = out_dir / "intermediate"
-    inter_dir.mkdir(parents=True)
-    cached_minutes = MeetingMinutes(conclusions=[_conc()], actions=[_act()])
-    (inter_dir / "minutes.json").write_text(cached_minutes.model_dump_json(), encoding="utf-8")
-    cached_review = ReviewResult(notes=[
-        ReviewNote(target_section="conclusion", target_id="C1",
-                   category="ok", severity="info", note="", suggestion=""),
-        ReviewNote(target_section="action", target_id="A1",
-                   category="ok", severity="info", note="", suggestion=""),
-    ])
-    (inter_dir / "review.json").write_text(cached_review.model_dump_json(), encoding="utf-8")
-    (out_dir / "speaker_map.json").write_text('{"SPEAKER_00": "Albert"}', encoding="utf-8")
+    inter = out_dir / "intermediate"
+    inter.mkdir(parents=True)
+    (inter / "minutes.json").write_text(
+        MeetingMinutes(conclusions=[_conc()], actions=[_act()]).model_dump_json(),
+        encoding="utf-8")
+    (inter / "review.json").write_text(
+        ReviewResult(notes=[]).model_dump_json(), encoding="utf-8")
+    (inter / "synthesized.json").write_text(
+        SynthesizedMinutes(topics=[SynthTopic(title="t", summary="s")]
+                           ).model_dump_json(), encoding="utf-8")
 
     run_pipeline(_src(tmp_path), settings=settings, name="t", rerender_only=True)
 
     write_x.assert_called_once()
     write_r.assert_called_once()
-    assert write_x.call_args.kwargs["speaker_map"] == {"SPEAKER_00": "Albert"}
-    assert write_x.call_args.kwargs["diarization_enabled"] is False
-    write_email.assert_not_called()
+    write_email.assert_called_once()
+    from script.schemas import SynthesizedMinutes as _SM
+    assert isinstance(write_x.call_args.args[0], _SM)
 
 
 def test_pipeline_rerender_only_raises_without_cache(tmp_path):
@@ -240,25 +235,15 @@ def test_pipeline_runs_synthesis_stage_and_keeps_existing_outputs(
             / "synthesized.json").exists()
 
 
-@patch("script.pipeline.write_minutes_html")
-@patch("script.pipeline.write_review_report_md")
-@patch("script.pipeline.write_email_html")
-def test_rerender_reuses_cached_synthesized(
-    write_email, write_r, write_x, tmp_path,
-):
+def test_rerender_raises_when_synthesized_missing(tmp_path):
     settings = _settings(tmp_path)
     out_dir = Path(settings.out_dir) / "t"
-    inter_dir = out_dir / "intermediate"
-    inter_dir.mkdir(parents=True)
-    (inter_dir / "minutes.json").write_text(
+    inter = out_dir / "intermediate"
+    inter.mkdir(parents=True)
+    (inter / "minutes.json").write_text(
         MeetingMinutes(conclusions=[_conc()], actions=[_act()]).model_dump_json(),
         encoding="utf-8")
-    (inter_dir / "review.json").write_text(
+    (inter / "review.json").write_text(
         ReviewResult(notes=[]).model_dump_json(), encoding="utf-8")
-    (inter_dir / "synthesized.json").write_text(
-        SynthesizedMinutes(topics=[SynthTopic(title="t", summary="s")]
-                           ).model_dump_json(), encoding="utf-8")
-
-    run_pipeline(_src(tmp_path), settings=settings, name="t", rerender_only=True)
-
-    write_email.assert_called_once()
+    with pytest.raises(RuntimeError, match="synthesized.json"):
+        run_pipeline(_src(tmp_path), settings=settings, name="t", rerender_only=True)
