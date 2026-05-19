@@ -86,7 +86,7 @@ run:
 		echo "Usage: make run FILE=path/to/transcript.txt [NAME=...]"; \
 		exit 1; \
 	fi
-	$(PY) -m script.main process "$(FILE)" $(NAME_FLAG)
+	$(PY) -m script.main "$(FILE)" $(NAME_FLAG)
 
 rerender:
 	@if [ -z "$(NAME)" ]; then \
@@ -94,7 +94,7 @@ rerender:
 		echo "Usage: make rerender NAME=<output_folder_name>"; \
 		exit 1; \
 	fi
-	$(PY) -m script.main process "(rerender)" --name $(NAME) --rerender
+	$(PY) -m script.main "(rerender)" --name $(NAME) --rerender
 
 open:
 	@if [ -z "$(NAME)" ]; then \

@@ -53,16 +53,16 @@ The LLM is prompted with a strictly conservative rule: **only fix terms listed i
 
 ```powershell
 # Basic
-python -m script.main process path\to\transcript.txt
+python -m script.main path\to\transcript.txt
 
 # Specify output folder name
-python -m script.main process transcript.txt --name 2026Q2_planning
+python -m script.main transcript.txt --name 2026Q2_planning
 
 # Force re-run all stages (ignore cached intermediates)
-python -m script.main process transcript.txt --force
+python -m script.main transcript.txt --force
 
 # Re-render outputs from cached minutes.json + review.json (no LLM)
-python -m script.main process transcript.txt --name 2026Q2_planning --rerender
+python -m script.main transcript.txt --name 2026Q2_planning --rerender
 ```
 
 Outputs land in `out\<name>\`:

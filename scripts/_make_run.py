@@ -58,7 +58,7 @@ def main(argv: list[str]) -> int:
         return 1
 
     py = str(Path(sys.prefix) / ("Scripts" if os.name == "nt" else "bin") / "python")
-    cmd = [py, "-m", "script.main", "process", file_val]
+    cmd = [py, "-m", "script.main", file_val]
     if name_val:
         cmd += ["--name", name_val]
 

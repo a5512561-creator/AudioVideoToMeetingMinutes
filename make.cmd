@@ -104,7 +104,7 @@ if "%NAME%"=="" (
     echo Usage: make rerender ^<output_folder_name^>
     exit /b 1
 )
-%PY% -m script.main process "(rerender)" --name %NAME% --rerender
+%PY% -m script.main "(rerender)" --name %NAME% --rerender
 exit /b %ERRORLEVEL%
 
 :open
