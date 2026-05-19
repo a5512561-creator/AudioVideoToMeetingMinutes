@@ -1,10 +1,10 @@
 @echo off
-REM Windows-native wrapper for the same workflows as the Makefile.
-REM Use this if you don't have GNU make installed.
+REM Windows-native task runner for the meeting-minutes pipeline.
+REM Full documentation: see make.md
 REM
 REM Note: Uses POSITIONAL args (Windows CMD's KEY=VALUE parsing is fragile
-REM with quoted paths containing spaces / non-ASCII). The Linux Makefile
-REM keeps the GNU make standard NAME=value style.
+REM with quoted paths containing spaces / non-ASCII, e.g. CJK transcript
+REM filenames).
 REM
 REM Usage:
 REM   make help
