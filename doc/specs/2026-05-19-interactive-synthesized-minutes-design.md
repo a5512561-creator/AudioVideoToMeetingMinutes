@@ -67,7 +67,8 @@
 ### 3.2 `script/templates/minutes.html.j2` 改寫
 
 - 自包含單檔 HTML（沿用現有「無外部資源、可離線開」風格），含極簡內嵌 JS
-  （分頁切換、優先級篩選、全文搜尋高亮）——這是互動版，允許 JS（與
+  （分頁切換、優先級篩選、全文搜尋過濾——比對命中即顯示、未命中即隱藏；
+  不做 `<mark>` 反白標示）——這是互動版，允許 JS（與
   `minutes_email.html` 的「無 JS」限制不同）。
 - 表頭：會議檔名、會議日期（`meta.meeting_date`）、逐字稿長度提示
   （`meta.duration_hint`）、計數（議題 N / 決議 N / Action N / warn N / error N）。
@@ -77,7 +78,7 @@
   high/medium/low 篩選鈕（純前端切換顯示）。
 - 分頁 3 **Review**：頂部說明句（§2 的 ID 落差說明）；下方 warn/error 清單
   （嚴重度 icon + section + note + suggestion）。
-- 全域搜尋框：跨三分頁做關鍵字過濾/高亮（純前端）。
+- 全域搜尋框：在目前分頁內做關鍵字過濾（命中顯示／未命中隱藏，純前端；不反白）。
 
 ### 3.3 `script/pipeline.py` 變更
 
