@@ -151,3 +151,32 @@ def test_correction_result_holds_diffs():
         diffs=[CorrectionDiff(original="a", corrected="b", matched_term="b", timestamp="00:00:01")],
     )
     assert len(r.diffs) == 1
+
+
+from script.schemas import (
+    SynthTopic, SynthAction, SourceRef, MeetingMeta, SynthesizedMinutes,
+)
+
+
+def test_synth_topic_defaults():
+    t = SynthTopic(title="KPI 訂定", summary="討論摘要")
+    assert t.decisions == [] and t.source_timestamps == []
+
+
+def test_synth_action_priority_enum():
+    a = SynthAction(task="試算 KTR", owner="未明", due="未明", priority="high")
+    assert a.source_timestamps == []
+    with pytest.raises(ValidationError):
+        SynthAction(task="x", owner="未明", due="未明", priority="urgent")
+
+
+def test_synthesized_minutes_meta_optional_and_nested():
+    sm = SynthesizedMinutes(
+        topics=[SynthTopic(title="t", summary="s", decisions=["d"])],
+        action_items=[SynthAction(task="x", owner="未明", due="未明", priority="low")],
+        source_index=[SourceRef(label="決議 1", timestamps=["00:08:34"])],
+    )
+    assert sm.meta is None
+    sm.meta = MeetingMeta(meeting_date="2026/05/18", duration_hint="逐字稿長度約 1h 55m")
+    assert sm.meta.meeting_date == "2026/05/18"
+    assert sm.topics[0].decisions == ["d"]

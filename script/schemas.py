@@ -69,3 +69,35 @@ class CorrectionDiff(BaseModel):
 class CorrectionResult(BaseModel):
     corrected_text: str
     diffs: list[CorrectionDiff]
+
+
+class SynthTopic(BaseModel):
+    title: str
+    summary: str
+    decisions: list[str] = []
+    source_timestamps: list[str] = []
+
+
+class SynthAction(BaseModel):
+    task: str
+    owner: str
+    due: str
+    priority: Literal["high", "medium", "low"]
+    source_timestamps: list[str] = []
+
+
+class SourceRef(BaseModel):
+    label: str
+    timestamps: list[str] = []
+
+
+class MeetingMeta(BaseModel):
+    meeting_date: str
+    duration_hint: str
+
+
+class SynthesizedMinutes(BaseModel):
+    meta: MeetingMeta | None = None
+    topics: list[SynthTopic] = []
+    action_items: list[SynthAction] = []
+    source_index: list[SourceRef] = []
