@@ -5,6 +5,7 @@ is a *hint* derived from the transcript timestamp span (NOT wall-clock).
 """
 import re
 from pathlib import Path
+from script.schemas import MeetingMeta
 
 _DATE_SEP = re.compile(r"(20\d{2})[-/](\d{2})[-/](\d{2})")
 _DATE_8 = re.compile(r"(20\d{2})(\d{2})(\d{2})")
@@ -30,3 +31,8 @@ def duration_hint(transcript_md_text: str) -> str:
     span = max(secs) - min(secs)
     h, rem = divmod(span, 3600)
     return f"逐字稿長度約 {h}h {rem // 60}m"
+
+
+def empty_meta() -> MeetingMeta:
+    """Placeholder meta when nothing could be inferred."""
+    return MeetingMeta(meeting_date="YYYY/MM/DD", duration_hint="逐字稿長度未知")

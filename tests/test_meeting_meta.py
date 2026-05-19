@@ -24,3 +24,12 @@ def test_duration_hint_from_span():
 
 def test_duration_hint_no_timestamps():
     assert duration_hint("no timestamps here\n") == "逐字稿長度未知"
+
+
+def test_empty_meta_placeholders():
+    from script.meeting_meta import empty_meta
+    from script.schemas import MeetingMeta
+    m = empty_meta()
+    assert isinstance(m, MeetingMeta)
+    assert m.meeting_date == "YYYY/MM/DD"
+    assert m.duration_hint == "逐字稿長度未知"
