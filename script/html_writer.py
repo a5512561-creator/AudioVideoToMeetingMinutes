@@ -15,7 +15,7 @@ from jinja2 import Environment, FileSystemLoader
 
 from script.schemas import SynthesizedMinutes, ReviewResult, MeetingMeta
 from script.meeting_meta import empty_meta
-from script.audio_assets import clip_start
+from script.audio_assets import clip_start, output_audio
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 _SECTION_LABEL = {"conclusion": "結論", "key_point": "重點", "action": "Action"}
@@ -48,9 +48,9 @@ def write_minutes_html(
     out_dir.mkdir(parents=True, exist_ok=True)
     m = meta or synth.meta or empty_meta()
 
-    audio_files = sorted(out_dir.glob("audio.*"))
-    has_audio = bool(audio_files)
-    audio_src = audio_files[0].name if has_audio else ""
+    _audio = output_audio(out_dir)
+    has_audio = _audio is not None
+    audio_src = _audio.name if has_audio else ""
 
     topics = [
         {

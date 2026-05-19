@@ -156,3 +156,5 @@ minutes_email.html / review_report.md / minutes.json：不變
   A 的議題層級顆粒度不足時再評估。
 - 音訊壓縮以縮小複製體積（需 ffmpeg；本次刻意不引入）。
 - Review 項目對應時間（需 synthesis 階段建 raw→synth 對照）。
+- 從網路磁碟（UNC 路徑）以 `file://` 開啟 minutes.html 時，部分瀏覽器（Chrome）對本機音訊有 CORS 限制；放本機磁碟可正常播放。
+- `find_sibling_audio` 的副檔名比對為小寫清單；本專案僅 Windows（不分大小寫），若日後移植 Linux（大小寫敏感）需補大寫處理。

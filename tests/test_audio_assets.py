@@ -1,5 +1,5 @@
 from pathlib import Path
-from script.audio_assets import find_sibling_audio, clip_start
+from script.audio_assets import find_sibling_audio, clip_start, output_audio
 
 
 def test_find_sibling_prefers_extension_order(tmp_path):
@@ -44,3 +44,15 @@ def test_clip_start_bad_value_returns_none():
     assert clip_start("", 5) is None
     assert clip_start("abc", 5) is None
     assert clip_start("1:2:3:4", 5) is None
+
+
+def test_output_audio_prefers_extension_order(tmp_path):
+    (tmp_path / "audio.aac").write_text("a", encoding="utf-8")
+    (tmp_path / "audio.m4a").write_text("a", encoding="utf-8")
+    got = output_audio(tmp_path)
+    assert got is not None and got.name == "audio.m4a"  # .m4a beats .aac
+
+
+def test_output_audio_none_when_absent(tmp_path):
+    (tmp_path / "audio.json").write_text("{}", encoding="utf-8")  # not an audio ext
+    assert output_audio(tmp_path) is None

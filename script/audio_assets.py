@@ -39,3 +39,14 @@ def clip_start(ts: str, pre: int) -> int | None:
     else:
         total = nums[0]
     return max(0, total - pre)
+
+
+def output_audio(out_dir) -> Path | None:
+    """Return out_dir/audio.<ext> for the first matching audio extension
+    (same preference order as find_sibling_audio), else None."""
+    base = Path(out_dir)
+    for ext in _AUDIO_EXTS:
+        cand = base / ("audio" + ext)
+        if cand.exists():
+            return cand
+    return None
