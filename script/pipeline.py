@@ -17,7 +17,7 @@ from script.email_writer import write_email_html
 from script.meeting_meta import infer_meeting_date, duration_hint
 from script.transcript_corrector import correct_transcript
 from script.agents.corrector_agent import CorrectorAgent
-from script.schemas import MeetingMinutes, MeetingMeta, ReviewResult
+from script.schemas import MeetingMinutes, MeetingMeta, ReviewResult, SynthesizedMinutes
 from script import speaker_map as _spk_map
 
 
@@ -74,7 +74,6 @@ def run_pipeline(
         )
         synth_path = inter_dir / "synthesized.json"
         if synth_path.exists():
-            from script.schemas import SynthesizedMinutes
             synth = SynthesizedMinutes.model_validate_json(
                 synth_path.read_text(encoding="utf-8")
             )

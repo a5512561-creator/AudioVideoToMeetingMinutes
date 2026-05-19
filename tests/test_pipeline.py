@@ -156,8 +156,9 @@ def test_pipeline_invokes_corrector_when_enabled(
 
 @patch("script.pipeline.write_minutes_html")
 @patch("script.pipeline.write_review_report_md")
+@patch("script.pipeline.write_email_html")
 def test_pipeline_rerender_only_skips_llm_and_uses_cached(
-    write_r, write_x, tmp_path,
+    write_email, write_r, write_x, tmp_path,
 ):
     settings = _settings(tmp_path)
     out_dir = Path(settings.out_dir) / "t"
@@ -180,6 +181,7 @@ def test_pipeline_rerender_only_skips_llm_and_uses_cached(
     write_r.assert_called_once()
     assert write_x.call_args.kwargs["speaker_map"] == {"SPEAKER_00": "Albert"}
     assert write_x.call_args.kwargs["diarization_enabled"] is False
+    write_email.assert_not_called()
 
 
 def test_pipeline_rerender_only_raises_without_cache(tmp_path):
