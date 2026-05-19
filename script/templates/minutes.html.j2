@@ -25,7 +25,6 @@
     .topic .summary{line-height:1.6;margin-bottom:8px}
     .topic ul{margin:6px 0 6px 22px}
     .topic li{margin:3px 0}
-    .src{font-size:.78rem;color:#718096;margin-top:6px}
     table{width:100%;border-collapse:collapse;background:#fff;font-size:.9rem}
     th,td{border:1px solid #e2e8f0;padding:8px 10px;text-align:left;vertical-align:top}
     th{background:#edf2f7}
@@ -36,6 +35,8 @@
     .p-high{color:#c53030;font-weight:600}
     .p-medium{color:#b7791f}
     .p-low{color:#276749}
+    .play{margin-left:6px;border:1px solid #cbd5e0;background:#edf2f7;color:#2b6cb0;border-radius:4px;padding:0 7px;font-size:.8rem;cursor:pointer;line-height:1.6}
+    .play:hover{background:#bee3f8}
     .disclaimer{background:#fffbea;border:1px solid #f6e05e;border-radius:6px;padding:10px 14px;font-size:.85rem;color:#7d6608;margin-bottom:12px}
     .rev{background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:10px;border-left:4px solid #cbd5e0}
     .rev[hidden]{display:none!important}
@@ -80,10 +81,7 @@
         <p class="summary">{{ t.summary }}</p>
         {% if t.decisions %}
         <b>決議：</b>
-        <ul>{% for d in t.decisions %}<li>{{ d }}</li>{% endfor %}</ul>
-        {% endif %}
-        {% if t.source_timestamps %}
-        <p class="src">⏱ {{ t.source_timestamps | join(', ') }}</p>
+        <ul>{% for d in t.decisions %}<li>{{ d }}{% if has_audio and t.start is not none %} <button type="button" class="play" data-start="{{ t.start }}">▶ 聽</button>{% endif %}</li>{% endfor %}</ul>
         {% endif %}
       </article>
       {% endfor %}
@@ -99,7 +97,7 @@
         <button data-pri="low">低</button>
       </div>
       <table>
-        <tr><th>#</th><th>任務</th><th>負責人</th><th>期限</th><th>優先級</th></tr>
+        <tr><th>#</th><th>任務</th><th>負責人</th><th>期限</th><th>優先級</th><th>聽</th></tr>
         {% for a in actions %}
         <tr class="searchable" data-priority="{{ a.priority }}">
           <td>{{ a.idx }}</td>
@@ -107,6 +105,7 @@
           <td>{{ a.owner }}</td>
           <td>{{ a.due }}</td>
           <td class="p-{{ a.priority }}">{{ {'high':'高','medium':'中','low':'低'}.get(a.priority, a.priority) }}</td>
+          <td>{% if has_audio and a.start is not none %}<button type="button" class="play" data-start="{{ a.start }}">▶ 聽</button>{% endif %}</td>
         </tr>
         {% endfor %}
       </table>
@@ -126,6 +125,8 @@
       {% else %}<p class="empty">✅ 無 warn / error 項目</p>{% endif %}
     </section>
   </main>
+
+  {% if has_audio %}<audio id="clip" src="{{ audio_src }}" preload="none"></audio>{% endif %}
 
   <script>
     (function(){
@@ -159,6 +160,19 @@
           applyFilters();
         });
       });
+      var CLIP_LEN={{ clip_len }};
+      var clip=document.getElementById('clip'), stopAt=null;
+      if(clip){
+        clip.addEventListener('timeupdate',function(){
+          if(stopAt!==null && clip.currentTime>=stopAt){ clip.pause(); stopAt=null; }
+        });
+        document.querySelectorAll('.play').forEach(function(btn){
+          btn.addEventListener('click',function(){
+            var s=+btn.dataset.start;
+            clip.currentTime=s; stopAt=s+CLIP_LEN; clip.play();
+          });
+        });
+      }
     }());
   </script>
 </body>

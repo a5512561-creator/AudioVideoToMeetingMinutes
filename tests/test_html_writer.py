@@ -63,7 +63,6 @@ def test_topics_tab_renders_title_summary_decisions(tmp_path):
     assert "KPI / KTR 訂定方式" in t
     assert "討論 KPI 是否納入考核。" in t
     assert "KPI 不納入考核" in t and "兩週後帶 KTR 公式" in t
-    assert "00:05:50" in t
 
 
 def test_actions_tab_table_and_priority_filter(tmp_path):
@@ -129,3 +128,38 @@ def test_medium_priority_renders_label_and_data_attr(tmp_path):
     assert 'data-priority="medium"' in t
     assert "中度任務" in t
     assert "中" in t  # medium -> 中 label
+
+
+def test_audio_buttons_present_when_audio_file_exists(tmp_path):
+    (tmp_path / "audio.m4a").write_text("fake", encoding="utf-8")
+    dst = tmp_path / "m.html"
+    write_minutes_html(_synth(), ReviewResult(notes=[]), str(dst),
+                       meeting_file="x", pre=5, duration=10)
+    t = dst.read_text(encoding="utf-8")
+    assert '<audio id="clip" src="audio.m4a"' in t
+    assert 'class="play"' in t
+    assert 'data-start="345"' in t   # topic 00:05:50 -> 350-5
+    assert 'data-start="82"' in t    # action 00:01:27 -> 87-5
+    assert "var CLIP_LEN=10" in t
+    assert 'class="src"' not in t
+
+
+def test_no_audio_buttons_when_no_audio_file(tmp_path):
+    dst = tmp_path / "m.html"
+    write_minutes_html(_synth(), ReviewResult(notes=[]), str(dst),
+                       meeting_file="x")
+    t = dst.read_text(encoding="utf-8")
+    assert '<audio' not in t
+    assert 'class="play"' not in t
+    assert 'class="src"' not in t
+
+
+def test_audio_pre_roll_respected(tmp_path):
+    (tmp_path / "audio.mp3").write_text("fake", encoding="utf-8")
+    dst = tmp_path / "m.html"
+    write_minutes_html(_synth(), ReviewResult(notes=[]), str(dst),
+                       meeting_file="x", pre=10, duration=30)
+    t = dst.read_text(encoding="utf-8")
+    assert '<audio id="clip" src="audio.mp3"' in t
+    assert 'data-start="340"' in t   # 350 - 10
+    assert "var CLIP_LEN=30" in t

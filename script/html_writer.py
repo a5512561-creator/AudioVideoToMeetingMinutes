@@ -5,6 +5,9 @@ actions) with tab navigation, full-text search and an action priority
 filter. The Review tab surfaces the reviewer's warn/error notes from the
 detailed extraction pass; those reference the RAW extracted items, not the
 synthesized topics, so the tab carries an on-page disclaimer.
+
+If a sibling audio file was copied next to the output (out/<name>/audio.*),
+each decision/action gets a ▶ that plays a clip around its first timestamp.
 """
 from pathlib import Path
 
@@ -12,10 +15,18 @@ from jinja2 import Environment, FileSystemLoader
 
 from script.schemas import SynthesizedMinutes, ReviewResult, MeetingMeta
 from script.meeting_meta import empty_meta
+from script.audio_assets import clip_start
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 _SECTION_LABEL = {"conclusion": "結論", "key_point": "重點", "action": "Action"}
 _SEV_ICON = {"info": "✅", "warn": "⚠️", "error": "❌"}
+
+
+def _first_start(timestamps, pre: int):
+    """clip_start of the first timestamp, or None."""
+    if not timestamps:
+        return None
+    return clip_start(timestamps[0], pre)
 
 
 def write_minutes_html(
@@ -25,13 +36,21 @@ def write_minutes_html(
     *,
     meeting_file: str,
     meta: MeetingMeta | None = None,
+    pre: int = 5,
+    duration: int = 10,
 ) -> None:
     """Render the interactive synthesized-minutes HTML.
 
     meta resolution order: explicit `meta` arg -> `synth.meta` -> empty_meta().
+    Audio ▶ buttons appear only when an `audio.*` file sits next to `dst`.
     """
-    Path(dst).parent.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(dst).parent
+    out_dir.mkdir(parents=True, exist_ok=True)
     m = meta or synth.meta or empty_meta()
+
+    audio_files = sorted(out_dir.glob("audio.*"))
+    has_audio = bool(audio_files)
+    audio_src = audio_files[0].name if has_audio else ""
 
     topics = [
         {
@@ -39,7 +58,7 @@ def write_minutes_html(
             "title": t.title,
             "summary": t.summary,
             "decisions": list(t.decisions),
-            "source_timestamps": list(t.source_timestamps),
+            "start": _first_start(t.source_timestamps, pre),
         }
         for i, t in enumerate(synth.topics, start=1)
     ]
@@ -50,6 +69,7 @@ def write_minutes_html(
             "owner": a.owner,
             "due": a.due,
             "priority": a.priority,
+            "start": _first_start(a.source_timestamps, pre),
         }
         for i, a in enumerate(synth.action_items, start=1)
     ]
@@ -83,5 +103,8 @@ def write_minutes_html(
         n_actions=len(actions),
         n_warns=sum(1 for n in review.notes if n.severity == "warn"),
         n_errors=sum(1 for n in review.notes if n.severity == "error"),
+        has_audio=has_audio,
+        audio_src=audio_src,
+        clip_len=duration,
     )
     Path(dst).write_text(html, encoding="utf-8")
