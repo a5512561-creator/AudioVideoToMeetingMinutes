@@ -4,7 +4,7 @@ Deliberately minimal: semantic tags + one table + inline styles, no JS,
 no CSS classes, no collapsibles — so an Outlook paste keeps its layout.
 """
 from pathlib import Path
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader
 
 from script.schemas import SynthesizedMinutes
 
@@ -16,7 +16,7 @@ def write_email_html(
 ) -> None:
     env = Environment(
         loader=FileSystemLoader(str(_TEMPLATE_DIR)),
-        autoescape=select_autoescape(["html", "j2"]),
+        autoescape=True,
         keep_trailing_newline=False,
     )
     meta = synth.meta or _empty_meta()
