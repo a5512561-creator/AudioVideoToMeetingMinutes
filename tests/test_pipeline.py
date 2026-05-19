@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 from script.config import Settings
 from script.schemas import (
     Conclusion, Action, ChunkExtract, MeetingMinutes, ReviewResult, ReviewNote,
+    SynthesizedMinutes, SynthTopic,
 )
 from script.pipeline import run_pipeline
 
@@ -38,8 +39,10 @@ def _src(tmp_path):
 @patch("script.pipeline.MinutesAgent")
 @patch("script.pipeline.chunk_transcript")
 @patch("script.pipeline.load_transcript")
+@patch("script.pipeline.SynthesisAgent")
+@patch("script.pipeline.write_email_html")
 def test_pipeline_runs_from_transcript(
-    load_m, chunk_m, MAm, RAm, write_r, write_x, tmp_path,
+    write_email, SAm, load_m, chunk_m, MAm, RAm, write_r, write_x, tmp_path,
 ):
     settings = _settings(tmp_path)
     out_dir = Path(settings.out_dir) / "t"
@@ -63,6 +66,9 @@ def test_pipeline_runs_from_transcript(
         ReviewNote(target_section="action", target_id="A1",
                    category="ok", severity="info", note="", suggestion=""),
     ])
+    SAm.return_value.synthesize.return_value = SynthesizedMinutes(
+        topics=[SynthTopic(title="t", summary="s")]
+    )
 
     run_pipeline(_src(tmp_path), settings=settings, name="t")
 
@@ -79,8 +85,10 @@ def test_pipeline_runs_from_transcript(
 @patch("script.pipeline.MinutesAgent")
 @patch("script.pipeline.chunk_transcript")
 @patch("script.pipeline.load_transcript")
+@patch("script.pipeline.SynthesisAgent")
+@patch("script.pipeline.write_email_html")
 def test_pipeline_uses_cached_transcript(
-    load_m, chunk_m, MAm, RAm, write_r, write_x, tmp_path,
+    write_email, SAm, load_m, chunk_m, MAm, RAm, write_r, write_x, tmp_path,
 ):
     settings = _settings(tmp_path)
     out_dir = Path(settings.out_dir) / "t"
@@ -97,6 +105,9 @@ def test_pipeline_uses_cached_transcript(
         ReviewNote(target_section="conclusion", target_id="C1",
                    category="ok", severity="info", note="", suggestion=""),
     ])
+    SAm.return_value.synthesize.return_value = SynthesizedMinutes(
+        topics=[SynthTopic(title="t", summary="s")]
+    )
 
     run_pipeline(_src(tmp_path), settings=settings, name="t", force=False)
 
@@ -111,8 +122,10 @@ def test_pipeline_uses_cached_transcript(
 @patch("script.pipeline.load_transcript")
 @patch("script.pipeline.correct_transcript")
 @patch("script.pipeline.CorrectorAgent")
+@patch("script.pipeline.SynthesisAgent")
+@patch("script.pipeline.write_email_html")
 def test_pipeline_invokes_corrector_when_enabled(
-    CAm, correct_m, load_m, chunk_m, MAm, RAm, write_r, write_x, tmp_path,
+    write_email, SAm, CAm, correct_m, load_m, chunk_m, MAm, RAm, write_r, write_x, tmp_path,
 ):
     settings = _settings(tmp_path, ENABLE_PROPER_NOUN_CORRECTION="true")
 
@@ -131,6 +144,9 @@ def test_pipeline_invokes_corrector_when_enabled(
         ReviewNote(target_section="conclusion", target_id="C1",
                    category="ok", severity="info", note="", suggestion=""),
     ])
+    SAm.return_value.synthesize.return_value = SynthesizedMinutes(
+        topics=[SynthTopic(title="t", summary="s")]
+    )
 
     run_pipeline(_src(tmp_path), settings=settings, name="t")
 
@@ -170,3 +186,77 @@ def test_pipeline_rerender_only_raises_without_cache(tmp_path):
     settings = _settings(tmp_path)
     with pytest.raises(RuntimeError, match="cached"):
         run_pipeline(_src(tmp_path), settings=settings, name="missing", rerender_only=True)
+
+
+@patch("script.pipeline.write_minutes_html")
+@patch("script.pipeline.write_review_report_md")
+@patch("script.pipeline.write_email_html")
+@patch("script.pipeline.SynthesisAgent")
+@patch("script.pipeline.ReviewerAgent")
+@patch("script.pipeline.MinutesAgent")
+@patch("script.pipeline.chunk_transcript")
+@patch("script.pipeline.load_transcript")
+def test_pipeline_runs_synthesis_stage_and_keeps_existing_outputs(
+    load_m, chunk_m, MAm, RAm, SAm, write_email, write_r, write_x, tmp_path,
+):
+    settings = _settings(tmp_path)
+
+    def _fake_load(src, dst):
+        Path(dst).parent.mkdir(parents=True, exist_ok=True)
+        Path(dst).write_text("[00:00:00] 大家好\n[01:00:00] 結束\n", encoding="utf-8")
+    load_m.side_effect = _fake_load
+
+    chunk_m.return_value = [MagicMock(text="x", first_timestamp="00:00:00",
+                                       last_timestamp="00:00:01", token_estimate=5)]
+    MAm.return_value.map_chunks.return_value = [
+        ChunkExtract(topics=[], conclusions=[_conc()], actions=[_act()])
+    ]
+    MAm.return_value.reduce.return_value = MeetingMinutes(
+        conclusions=[_conc()], actions=[_act()],
+    )
+    RAm.return_value.review.return_value = ReviewResult(notes=[
+        ReviewNote(target_section="conclusion", target_id="C1",
+                   category="ok", severity="info", note="", suggestion=""),
+        ReviewNote(target_section="action", target_id="A1",
+                   category="ok", severity="info", note="", suggestion=""),
+    ])
+    SAm.return_value.synthesize.return_value = SynthesizedMinutes(
+        topics=[SynthTopic(title="t", summary="s", decisions=["d"])],
+    )
+
+    run_pipeline(_src(tmp_path), settings=settings, name="20260518_x")
+
+    SAm.return_value.synthesize.assert_called_once()
+    sm_arg, meta_arg = SAm.return_value.synthesize.call_args.args
+    assert isinstance(sm_arg, MeetingMinutes)
+    assert meta_arg.meeting_date == "2026/05/18"
+    assert "逐字稿長度約 1h" in meta_arg.duration_hint
+    write_email.assert_called_once()
+    write_x.assert_called_once()
+    write_r.assert_called_once()
+    assert (Path(settings.out_dir) / "20260518_x" / "intermediate"
+            / "synthesized.json").exists()
+
+
+@patch("script.pipeline.write_minutes_html")
+@patch("script.pipeline.write_review_report_md")
+@patch("script.pipeline.write_email_html")
+def test_rerender_reuses_cached_synthesized(
+    write_email, write_r, write_x, tmp_path,
+):
+    settings = _settings(tmp_path)
+    out_dir = Path(settings.out_dir) / "t"
+    inter_dir = out_dir / "intermediate"
+    inter_dir.mkdir(parents=True)
+    (inter_dir / "minutes.json").write_text(
+        MeetingMinutes(conclusions=[_conc()], actions=[_act()]).model_dump_json(),
+        encoding="utf-8")
+    (inter_dir / "review.json").write_text(
+        ReviewResult(notes=[]).model_dump_json(), encoding="utf-8")
+    (inter_dir / "synthesized.json").write_text(
+        SynthesizedMinutes(topics=[SynthTopic(title="t", summary="s")]
+                           ).model_dump_json(), encoding="utf-8")
+
+    run_pipeline(_src(tmp_path), settings=settings, name="t", rerender_only=True)
+
+    write_email.assert_called_once()

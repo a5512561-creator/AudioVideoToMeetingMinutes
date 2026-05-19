@@ -12,9 +12,12 @@ from script.html_writer import write_minutes_html
 from script.agents.base import probe_instructor_mode, usage_summary, estimate_cost
 from script.agents.minutes_agent import MinutesAgent
 from script.agents.reviewer_agent import ReviewerAgent
+from script.agents.synthesis_agent import SynthesisAgent
+from script.email_writer import write_email_html
+from script.meeting_meta import infer_meeting_date, duration_hint
 from script.transcript_corrector import correct_transcript
 from script.agents.corrector_agent import CorrectorAgent
-from script.schemas import MeetingMinutes, ReviewResult
+from script.schemas import MeetingMinutes, MeetingMeta, ReviewResult
 from script import speaker_map as _spk_map
 
 
@@ -69,6 +72,15 @@ def run_pipeline(
             meeting_file=src, diarization_enabled=False,
             speakers_detected=0, speaker_map=spk_map,
         )
+        synth_path = inter_dir / "synthesized.json"
+        if synth_path.exists():
+            from script.schemas import SynthesizedMinutes
+            synth = SynthesizedMinutes.model_validate_json(
+                synth_path.read_text(encoding="utf-8")
+            )
+            write_email_html(
+                synth, str(out_dir / "minutes_email.html"), meeting_file=src
+            )
         log_kv(logger, "INFO", "pipeline.done", out=str(out_dir), mode="rerender")
         return
 
@@ -164,6 +176,30 @@ def run_pipeline(
            calls=review_usage["calls"],
            tokens_in=review_usage["prompt_tokens"],
            tokens_out=review_usage["completion_tokens"])
+
+    # Stage 5: synthesis -> paste-safe email HTML
+    meta = MeetingMeta(
+        meeting_date=infer_meeting_date(name, src),
+        duration_hint=duration_hint(transcript_text),
+    )
+    synth_agent = SynthesisAgent(
+        prompts_dir="script/prompts", client=client,
+        model=settings.openai_model, instructor_mode=mode,
+    )
+    usage_before_synth = len(getattr(client, "_usage_log", []))
+    synth = synth_agent.synthesize(minutes, meta)
+    (inter_dir / "synthesized.json").write_text(
+        synth.model_dump_json(), encoding="utf-8",
+    )
+    write_email_html(
+        synth, str(out_dir / "minutes_email.html"), meeting_file=src,
+    )
+    synth_usage = usage_summary(getattr(client, "_usage_log", [])[usage_before_synth:])
+    log_kv(logger, "INFO", "stage.synthesis",
+           topics=len(synth.topics), actions=len(synth.action_items),
+           calls=synth_usage["calls"],
+           tokens_in=synth_usage["prompt_tokens"],
+           tokens_out=synth_usage["completion_tokens"])
 
     # Aggregate token usage + optional cost summary
     total = usage_summary(getattr(client, "_usage_log", []))
