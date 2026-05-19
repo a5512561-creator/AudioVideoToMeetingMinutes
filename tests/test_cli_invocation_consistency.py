@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
-_FILES = ["Makefile", "make.cmd", "scripts/_make_run.py", "README.md"]
+_FILES = ["make.cmd", "make.md", "scripts/_make_run.py", "README.md"]
 
 
 def _normalize(text: str) -> str:
