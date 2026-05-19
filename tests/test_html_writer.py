@@ -142,6 +142,7 @@ def test_audio_buttons_present_when_audio_file_exists(tmp_path):
     assert 'data-start="82"' in t    # action 00:01:27 -> 87-5
     assert "var CLIP_LEN=10" in t
     assert 'class="src"' not in t
+    assert "聽</th>" in t
 
 
 def test_no_audio_buttons_when_no_audio_file(tmp_path):
@@ -152,6 +153,8 @@ def test_no_audio_buttons_when_no_audio_file(tmp_path):
     assert '<audio' not in t
     assert 'class="play"' not in t
     assert 'class="src"' not in t
+    assert "聽</th>" not in t
+    assert "CLIP_LEN" not in t
 
 
 def test_audio_pre_roll_respected(tmp_path):
