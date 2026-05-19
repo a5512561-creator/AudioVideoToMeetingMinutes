@@ -106,7 +106,7 @@
           <td>{{ a.task }}</td>
           <td>{{ a.owner }}</td>
           <td>{{ a.due }}</td>
-          <td class="p-{{ a.priority }}">{{ {'high':'高','medium':'中','low':'低'}[a.priority] }}</td>
+          <td class="p-{{ a.priority }}">{{ {'high':'高','medium':'中','low':'低'}.get(a.priority, a.priority) }}</td>
         </tr>
         {% endfor %}
       </table>

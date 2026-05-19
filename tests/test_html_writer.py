@@ -117,3 +117,15 @@ def test_html_self_contained_and_escapes(tmp_path):
     assert "cdn." not in t.lower() and "//unpkg" not in t
     assert "<style>" in t and "<script>" in t
     assert "&lt;b&gt;" in t and "&amp;" in t
+
+
+def test_medium_priority_renders_label_and_data_attr(tmp_path):
+    s = _synth(action_items=[SynthAction(task="中度任務", owner="未明",
+                                         due="未明", priority="medium",
+                                         source_timestamps=["00:09:00"])])
+    dst = tmp_path / "m.html"
+    write_minutes_html(s, ReviewResult(notes=[]), str(dst), meeting_file="x")
+    t = dst.read_text(encoding="utf-8")
+    assert 'data-priority="medium"' in t
+    assert "中度任務" in t
+    assert "中" in t  # medium -> 中 label

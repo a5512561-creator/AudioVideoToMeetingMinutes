@@ -175,8 +175,7 @@ def test_rerender_uses_all_three_caches(write_email, write_r, write_x, tmp_path)
     write_x.assert_called_once()
     write_r.assert_called_once()
     write_email.assert_called_once()
-    from script.schemas import SynthesizedMinutes as _SM
-    assert isinstance(write_x.call_args.args[0], _SM)
+    assert isinstance(write_x.call_args.args[0], SynthesizedMinutes)
 
 
 def test_pipeline_rerender_only_raises_without_cache(tmp_path):
