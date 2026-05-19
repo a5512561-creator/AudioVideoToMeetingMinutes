@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     llm_timeout_secs: int = Field(180, alias="LLM_TIMEOUT_SECS")
     llm_parallel_map: int = Field(3, alias="LLM_PARALLEL_MAP")
 
+    # === Audio clip (minutes.html ▶) ===
+    audio_clip_pre_seconds: int = Field(5, alias="AUDIO_CLIP_PRE_SECONDS")
+    audio_clip_duration_seconds: int = Field(10, alias="AUDIO_CLIP_DURATION_SECONDS")
+
     # === Pricing (optional; used only for cost estimate display) ===
     # Set to your provider's per-million-tokens rates. Defaults to 0
     # (no cost shown — only token volume reported).

@@ -44,3 +44,25 @@ def test_proper_noun_correction_default_false(monkeypatch, tmp_path):
     s = Settings()
     assert s.enable_proper_noun_correction is False
     assert s.glossary_file == "script/prompts/glossary.md"
+
+
+def test_audio_clip_defaults(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_API_BASE", "https://x.example/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    monkeypatch.chdir(tmp_path)
+    s = Settings()
+    assert s.audio_clip_pre_seconds == 5
+    assert s.audio_clip_duration_seconds == 10
+
+
+def test_audio_clip_overridable(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_API_BASE", "https://x.example/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    monkeypatch.setenv("AUDIO_CLIP_PRE_SECONDS", "8")
+    monkeypatch.setenv("AUDIO_CLIP_DURATION_SECONDS", "20")
+    monkeypatch.chdir(tmp_path)
+    s = Settings()
+    assert s.audio_clip_pre_seconds == 8
+    assert s.audio_clip_duration_seconds == 20
