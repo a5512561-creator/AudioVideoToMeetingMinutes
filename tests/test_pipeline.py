@@ -246,3 +246,78 @@ def test_rerender_raises_when_synthesized_missing(tmp_path):
         ReviewResult(notes=[]).model_dump_json(), encoding="utf-8")
     with pytest.raises(RuntimeError, match="synthesized.json"):
         run_pipeline(_src(tmp_path), settings=settings, name="t", rerender_only=True)
+
+
+@patch("script.pipeline.write_minutes_html")
+@patch("script.pipeline.write_review_report_md")
+@patch("script.pipeline.write_email_html")
+@patch("script.pipeline.SynthesisAgent")
+@patch("script.pipeline.ReviewerAgent")
+@patch("script.pipeline.MinutesAgent")
+@patch("script.pipeline.chunk_transcript")
+@patch("script.pipeline.load_transcript")
+def test_pipeline_copies_sibling_audio_and_passes_clip_kwargs(
+    load_m, chunk_m, MAm, RAm, SAm, write_email, write_r, write_x, tmp_path,
+):
+    from script.schemas import SynthesizedMinutes, SynthTopic
+    settings = _settings(tmp_path)
+    src = tmp_path / "mtg.txt"
+    src.write_text("00:00\n大家好\n", encoding="utf-8")
+    (tmp_path / "mtg.m4a").write_text("FAKEAUDIO", encoding="utf-8")
+
+    def _fake_load(s, d):
+        Path(d).parent.mkdir(parents=True, exist_ok=True)
+        Path(d).write_text("[00:00:00] 大家好\n", encoding="utf-8")
+    load_m.side_effect = _fake_load
+    chunk_m.return_value = [MagicMock(text="x", first_timestamp="00:00:00",
+                                       last_timestamp="00:00:01", token_estimate=5)]
+    MAm.return_value.map_chunks.return_value = [
+        ChunkExtract(topics=[], conclusions=[_conc()], actions=[_act()])
+    ]
+    MAm.return_value.reduce.return_value = MeetingMinutes(
+        conclusions=[_conc()], actions=[_act()])
+    RAm.return_value.review.return_value = ReviewResult(notes=[])
+    SAm.return_value.synthesize.return_value = SynthesizedMinutes(
+        topics=[SynthTopic(title="t", summary="s")])
+
+    run_pipeline(str(src), settings=settings, name="m")
+
+    copied = Path(settings.out_dir) / "m" / "audio.m4a"
+    assert copied.exists() and copied.read_text(encoding="utf-8") == "FAKEAUDIO"
+    kw = write_x.call_args.kwargs
+    assert kw["pre"] == 5 and kw["duration"] == 10
+
+
+@patch("script.pipeline.write_minutes_html")
+@patch("script.pipeline.write_review_report_md")
+@patch("script.pipeline.write_email_html")
+@patch("script.pipeline.SynthesisAgent")
+@patch("script.pipeline.ReviewerAgent")
+@patch("script.pipeline.MinutesAgent")
+@patch("script.pipeline.chunk_transcript")
+@patch("script.pipeline.load_transcript")
+def test_pipeline_no_sibling_audio_is_not_an_error(
+    load_m, chunk_m, MAm, RAm, SAm, write_email, write_r, write_x, tmp_path,
+):
+    from script.schemas import SynthesizedMinutes, SynthTopic
+    settings = _settings(tmp_path)
+
+    def _fake_load(s, d):
+        Path(d).parent.mkdir(parents=True, exist_ok=True)
+        Path(d).write_text("[00:00:00] 大家好\n", encoding="utf-8")
+    load_m.side_effect = _fake_load
+    chunk_m.return_value = [MagicMock(text="x", first_timestamp="00:00:00",
+                                       last_timestamp="00:00:01", token_estimate=5)]
+    MAm.return_value.map_chunks.return_value = [
+        ChunkExtract(topics=[], conclusions=[_conc()], actions=[_act()])
+    ]
+    MAm.return_value.reduce.return_value = MeetingMinutes(
+        conclusions=[_conc()], actions=[_act()])
+    RAm.return_value.review.return_value = ReviewResult(notes=[])
+    SAm.return_value.synthesize.return_value = SynthesizedMinutes(
+        topics=[SynthTopic(title="t", summary="s")])
+
+    run_pipeline(_src(tmp_path), settings=settings, name="m")
+
+    assert not (Path(settings.out_dir) / "m" / "audio.m4a").exists()
+    write_x.assert_called_once()

@@ -1,5 +1,6 @@
 import dataclasses
 import json
+import shutil
 from pathlib import Path
 from openai import OpenAI
 
@@ -15,6 +16,7 @@ from script.agents.reviewer_agent import ReviewerAgent
 from script.agents.synthesis_agent import SynthesisAgent
 from script.email_writer import write_email_html
 from script.meeting_meta import infer_meeting_date, duration_hint
+from script.audio_assets import find_sibling_audio
 from script.transcript_corrector import correct_transcript
 from script.agents.corrector_agent import CorrectorAgent
 from script.schemas import MeetingMinutes, MeetingMeta, ReviewResult, SynthesizedMinutes
@@ -66,6 +68,8 @@ def run_pipeline(
         write_minutes_html(
             synth, review, str(out_dir / "minutes.html"),
             meeting_file=src, meta=synth.meta,
+            pre=settings.audio_clip_pre_seconds,
+            duration=settings.audio_clip_duration_seconds,
         )
         write_review_report_md(
             minutes, review, str(out_dir / "review_report.md"),
@@ -208,10 +212,24 @@ def run_pipeline(
            tokens_out=total["completion_tokens"],
            cost=f"{cost:.4f}", currency=settings.llm_currency)
 
+    # Copy sibling audio (same folder + stem as src) for minutes.html ▶
+    _audio = find_sibling_audio(src)
+    if _audio is not None:
+        try:
+            _audio_dst = out_dir / ("audio" + _audio.suffix.lower())
+            shutil.copyfile(str(_audio), str(_audio_dst))
+            log_kv(logger, "INFO", "stage.audio_asset", copied=str(_audio_dst))
+        except OSError as e:
+            log_kv(logger, "WARNING", "stage.audio_asset", error=str(e))
+    else:
+        log_kv(logger, "INFO", "stage.audio_asset", status="missing")
+
     # Outputs
     write_minutes_html(
         synth, review, str(out_dir / "minutes.html"),
         meeting_file=src, meta=meta,
+        pre=settings.audio_clip_pre_seconds,
+        duration=settings.audio_clip_duration_seconds,
     )
     write_review_report_md(
         minutes, review, str(out_dir / "review_report.md"),
