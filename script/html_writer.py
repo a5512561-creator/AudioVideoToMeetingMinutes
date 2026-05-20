@@ -6,27 +6,42 @@ filter. The Review tab surfaces the reviewer's warn/error notes from the
 detailed extraction pass; those reference the RAW extracted items, not the
 synthesized topics, so the tab carries an on-page disclaimer.
 
-If a sibling audio file was copied next to the output (out/<name>/audio.*),
-each decision/action gets a ▶ that plays a clip around its first timestamp.
+When the caller passes per-anchor audio clips (``clips`` kwarg, populated
+by ``pipeline._cut_audio_clips``), each decision/action gets a ▶ that
+plays an inline ``data:audio/...;base64,...`` URL. Inlining the audio (vs
+referencing external files) is necessary because cloud viewers (OneDrive,
+SharePoint, Outlook web) render the HTML inside an iframe whose base URL
+is the viewer domain — relative ``<audio src="clip_NN.m4a">`` URLs cannot
+reach the user's folder from there. data: URLs make the HTML truly
+single-file portable.
 """
+import json
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
 from script.schemas import SynthesizedMinutes, ReviewResult, MeetingMeta
 from script.meeting_meta import empty_meta
-from script.audio_assets import clip_start, output_audio
+from script.audio_assets import clip_start
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 _SECTION_LABEL = {"conclusion": "結論", "key_point": "重點", "action": "Action"}
 _SEV_ICON = {"info": "✅", "warn": "⚠️", "error": "❌"}
 
 
-def _first_start(timestamps, pre: int):
-    """clip_start of the first timestamp, or None."""
-    if not timestamps:
+def _clip_key_for(timestamps, pre: int, clips: dict[int, str]):
+    """Return the start-second as a string key if its anchor has a clip; None otherwise.
+
+    The buttons hold this short key (e.g. ``"345"``); the actual data URL
+    lives in a single JS ``CLIPS`` dict in the page so each unique clip
+    appears exactly once even when many decisions share the same anchor.
+    """
+    if not timestamps or not clips:
         return None
-    return clip_start(timestamps[0], pre)
+    s = clip_start(timestamps[0], pre)
+    if s is None or s not in clips:
+        return None
+    return str(s)
 
 
 def write_minutes_html(
@@ -37,20 +52,21 @@ def write_minutes_html(
     meeting_file: str,
     meta: MeetingMeta | None = None,
     pre: int = 5,
-    duration: int = 10,
+    clips: dict[int, str] | None = None,
 ) -> None:
     """Render the interactive synthesized-minutes HTML.
 
     meta resolution order: explicit `meta` arg -> `synth.meta` -> empty_meta().
-    Audio ▶ buttons appear only when an `audio.*` file sits next to `dst`.
+    Audio ▶ buttons render when `clips` maps the per-item anchor second to
+    a ``data:audio/...;base64,...`` URL produced by pipeline.
     """
     out_dir = Path(dst).parent
     out_dir.mkdir(parents=True, exist_ok=True)
     m = meta or synth.meta or empty_meta()
 
-    _audio = output_audio(out_dir)
-    has_audio = _audio is not None
-    audio_src = _audio.name if has_audio else ""
+    clips = clips or {}
+    has_audio = bool(clips)
+    clips_js = json.dumps({str(k): v for k, v in clips.items()}, ensure_ascii=True)
 
     topics = [
         {
@@ -58,7 +74,7 @@ def write_minutes_html(
             "title": t.title,
             "summary": t.summary,
             "decisions": list(t.decisions),
-            "start": _first_start(t.source_timestamps, pre),
+            "clip": _clip_key_for(t.source_timestamps, pre, clips),
         }
         for i, t in enumerate(synth.topics, start=1)
     ]
@@ -69,7 +85,7 @@ def write_minutes_html(
             "owner": a.owner,
             "due": a.due,
             "priority": a.priority,
-            "start": _first_start(a.source_timestamps, pre),
+            "clip": _clip_key_for(a.source_timestamps, pre, clips),
         }
         for i, a in enumerate(synth.action_items, start=1)
     ]
@@ -104,7 +120,6 @@ def write_minutes_html(
         n_warns=sum(1 for n in review.notes if n.severity == "warn"),
         n_errors=sum(1 for n in review.notes if n.severity == "error"),
         has_audio=has_audio,
-        audio_src=audio_src,
-        clip_len=duration,
+        clips_js=clips_js,
     )
     Path(dst).write_text(html, encoding="utf-8")

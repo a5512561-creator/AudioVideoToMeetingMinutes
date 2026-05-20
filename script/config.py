@@ -14,6 +14,11 @@ class Settings(BaseSettings):
     openai_api_key: str = Field(..., alias="OPENAI_API_KEY")
     openai_api_base: str = Field(..., alias="OPENAI_API_BASE")
     openai_model: str = Field(..., alias="OPENAI_MODEL")
+    # Override Instructor's auto-probe (which detects TOOLS support). Set to
+    # "JSON" or "MD_JSON" when the configured model accepts tool-call requests
+    # but emits malformed tool_call.arguments (Anthropic XML, markdown-fenced
+    # JSON with preamble, etc.). "" / "auto" keeps the auto-probe behaviour.
+    openai_instructor_mode: str = Field("", alias="OPENAI_INSTRUCTOR_MODE")
 
     # === Transcript Correction (Stage 2.95) ===
     enable_proper_noun_correction: bool = Field(False, alias="ENABLE_PROPER_NOUN_CORRECTION")

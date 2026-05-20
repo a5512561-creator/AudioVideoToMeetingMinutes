@@ -96,6 +96,86 @@ def test_probe_instructor_mode_falls_back_to_json_on_error():
     assert mode == "JSON"
 
 
+def test_unfence_strips_full_markdown_block():
+    """Realtek's medium model puts valid JSON inside ```json … ``` markdown
+    fences as the tool_call.arguments string. _unfence pulls the JSON out
+    so Pydantic's JSON parser doesn't see backticks as line-1 column-1."""
+    from script.agents.base import _unfence
+    payload = '```json\n{"a": 1, "b": [2, 3]}\n```'
+    assert _unfence(payload) == '{"a": 1, "b": [2, 3]}'
+
+
+def test_unfence_handles_no_lang_tag():
+    from script.agents.base import _unfence
+    assert _unfence('```\n{"x": 1}\n```') == '{"x": 1}'
+
+
+def test_unfence_leaves_unfenced_input_alone():
+    from script.agents.base import _unfence
+    s = '{"a": 1}'
+    assert _unfence(s) is s  # exact same object — no allocation needed
+
+
+def test_unfence_extracts_block_after_preamble():
+    """Some reasoning models prepend natural-language commentary before the
+    fenced JSON ("OK, here is the consolidated output:\\n\\n```json…```").
+    We must extract the JSON regardless of leading text — anchoring at
+    start would leave Pydantic to see the Chinese preamble at col 1."""
+    from script.agents.base import _unfence
+    payload = '好的，整合如下：\n\n```json\n{"conclusions": []}\n```'
+    assert _unfence(payload) == '{"conclusions": []}'
+
+
+def test_unfence_extracts_block_with_trailing_text():
+    """Trailing text after the closing fence is also discarded."""
+    from script.agents.base import _unfence
+    payload = '```json\n{"a": 1}\n```\n\nLet me know if you need anything else.'
+    assert _unfence(payload) == '{"a": 1}'
+
+
+def test_unfence_inline_backticks_in_string_value_not_extracted():
+    """Backticks that appear inline in a JSON string value but don't form a
+    proper ```\\n…\\n``` block must not be mis-extracted."""
+    from script.agents.base import _unfence
+    s = '{"code": "use `git status` to check"}'
+    assert _unfence(s) == s
+
+
+def test_unfence_handles_none_and_empty():
+    from script.agents.base import _unfence
+    assert _unfence(None) is None
+    assert _unfence("") == ""
+
+
+def test_strip_thinking_tokens_unfences_tool_call_arguments():
+    """End-to-end: a response whose tool_call.arguments is a markdown-fenced
+    JSON gets unwrapped in-place so Instructor's downstream parser sees
+    clean JSON. This is the exact failure mode observed with the medium
+    model in production."""
+    from script.agents.base import _strip_thinking_tokens
+    client = MagicMock()
+    tc = MagicMock()
+    tc.function = MagicMock()
+    tc.function.arguments = '```json\n{"topics": ["t1"]}\n```'
+    msg = MagicMock()
+    msg.content = ""
+    msg.tool_calls = [tc]
+    choice = MagicMock()
+    choice.message = msg
+    fake_resp = MagicMock()
+    fake_resp.choices = [choice]
+    fake_resp.usage = None
+    client.chat.completions.create.return_value = fake_resp
+    for attr in ("_strip_thinking_installed", "_usage_log"):
+        if hasattr(client, attr):
+            delattr(client, attr)
+
+    wrapped = _strip_thinking_tokens(client)
+    wrapped.chat.completions.create()
+
+    assert tc.function.arguments == '{"topics": ["t1"]}'
+
+
 def test_strip_thinking_tokens_records_usage():
     """Token usage on each completion appended to client._usage_log."""
     from script.agents.base import _strip_thinking_tokens

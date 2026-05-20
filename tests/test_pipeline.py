@@ -280,12 +280,27 @@ def test_pipeline_copies_sibling_audio_and_passes_clip_kwargs(
     SAm.return_value.synthesize.return_value = SynthesizedMinutes(
         topics=[SynthTopic(title="t", summary="s")])
 
-    run_pipeline(str(src), settings=settings, name="m")
+    with patch("script.pipeline.cut_clips", return_value={}) as cut_m:
+        run_pipeline(str(src), settings=settings, name="m")
 
     copied = Path(settings.out_dir) / "m" / "audio.m4a"
     assert copied.exists() and copied.read_text(encoding="utf-8") == "FAKEAUDIO"
     kw = write_x.call_args.kwargs
-    assert kw["pre"] == 5 and kw["duration"] == 10
+    assert kw["pre"] == 5
+    assert "clips" in kw
+    # cut_clips was invoked once with the copied audio + duration from settings
+    assert cut_m.call_count == 1
+    assert cut_m.call_args.args[0].name == "audio.m4a"
+    assert cut_m.call_args.args[2] == 10  # audio_clip_duration_seconds
+
+    # Regression: bare Mock swallows any kwarg, masking signature drift. Compare
+    # against the real write_minutes_html signature so a kwarg renamed/removed
+    # here without updating pipeline.py fails the test instead of crashing prod.
+    import inspect
+    from script.html_writer import write_minutes_html as real_wmh
+    allowed = set(inspect.signature(real_wmh).parameters)
+    extra = set(kw) - allowed
+    assert not extra, f"pipeline passes kwargs write_minutes_html cannot accept: {extra}"
 
 
 @patch("script.pipeline.write_minutes_html")

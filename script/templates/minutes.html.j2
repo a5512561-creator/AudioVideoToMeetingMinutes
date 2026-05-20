@@ -81,7 +81,7 @@
         <p class="summary">{{ t.summary }}</p>
         {% if t.decisions %}
         <b>決議：</b>
-        <ul>{% for d in t.decisions %}<li>{{ d }}{% if has_audio and t.start is not none %} <button type="button" class="play" data-start="{{ t.start }}">▶ 聽</button>{% endif %}</li>{% endfor %}</ul>
+        <ul>{% for d in t.decisions %}<li>{{ d }}{% if t.clip %} <button type="button" class="play" data-clip="{{ t.clip }}">▶ 聽</button>{% endif %}</li>{% endfor %}</ul>
         {% endif %}
       </article>
       {% endfor %}
@@ -105,7 +105,7 @@
           <td>{{ a.owner }}</td>
           <td>{{ a.due }}</td>
           <td class="p-{{ a.priority }}">{{ {'high':'高','medium':'中','low':'低'}.get(a.priority, a.priority) }}</td>
-          {% if has_audio %}<td>{% if a.start is not none %}<button type="button" class="play" data-start="{{ a.start }}">▶ 聽</button>{% endif %}</td>{% endif %}
+          {% if has_audio %}<td>{% if a.clip %}<button type="button" class="play" data-clip="{{ a.clip }}">▶ 聽</button>{% endif %}</td>{% endif %}
         </tr>
         {% endfor %}
       </table>
@@ -126,7 +126,7 @@
     </section>
   </main>
 
-  {% if has_audio %}<audio id="clip" src="{{ audio_src }}" preload="none"></audio>{% endif %}
+  {% if has_audio %}<audio id="clip" preload="none"></audio>{% endif %}
 
   <script>
     (function(){
@@ -161,16 +161,14 @@
         });
       });
       {% if has_audio %}
-      var CLIP_LEN={{ clip_len }};
-      var clip=document.getElementById('clip'), stopAt=null;
+      var CLIPS={{ clips_js|safe }};
+      var clip=document.getElementById('clip');
       if(clip){
-        clip.addEventListener('timeupdate',function(){
-          if(stopAt!==null && clip.currentTime>=stopAt){ clip.pause(); stopAt=null; }
-        });
         document.querySelectorAll('.play').forEach(function(btn){
           btn.addEventListener('click',function(){
-            var s=+btn.dataset.start;
-            clip.currentTime=s; stopAt=s+CLIP_LEN; clip.play();
+            var url=CLIPS[btn.dataset.clip];
+            if(!url) return;
+            clip.src=url; clip.play();
           });
         });
       }

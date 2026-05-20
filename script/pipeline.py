@@ -16,7 +16,9 @@ from script.agents.reviewer_agent import ReviewerAgent
 from script.agents.synthesis_agent import SynthesisAgent
 from script.email_writer import write_email_html
 from script.meeting_meta import infer_meeting_date, duration_hint
-from script.audio_assets import find_sibling_audio
+from script.audio_assets import (
+    find_sibling_audio, output_audio, clip_start, cut_clips, file_to_data_url,
+)
 from script.transcript_corrector import correct_transcript
 from script.agents.corrector_agent import CorrectorAgent
 from script.schemas import MeetingMinutes, MeetingMeta, ReviewResult, SynthesizedMinutes
@@ -29,6 +31,56 @@ def _chunk_to_dict(c) -> dict:
         return dataclasses.asdict(c)
     return {"text": c.text, "first_timestamp": c.first_timestamp,
             "last_timestamp": c.last_timestamp, "token_estimate": c.token_estimate}
+
+
+def _resolve_instructor_mode(client, settings) -> str:
+    """Return Instructor's API mode, honouring the OPENAI_INSTRUCTOR_MODE
+    override before falling back to the auto-probe.
+
+    Some local-hosted reasoning models accept tool-call requests but emit
+    malformed tool_call.arguments (Anthropic XML, markdown-fenced JSON with
+    chatty preamble). The auto-probe can't catch that — it only checks
+    whether the *request* is accepted. The env override lets users force
+    ``JSON`` or ``MD_JSON`` mode when their model needs it.
+    """
+    override = (settings.openai_instructor_mode or "").strip().upper()
+    if override and override != "AUTO":
+        return override
+    return probe_instructor_mode(client, model=settings.openai_model)
+
+
+def _cut_audio_clips(out_dir, synth, settings) -> dict[int, str]:
+    """Pre-cut one ffmpeg clip per unique ▶ anchor in ``synth``, then encode
+    each cut to a ``data:audio/...;base64,...`` URL.
+
+    The returned dict maps ``start_second → data URL``. We inline rather
+    than reference external clip files because cloud viewers (OneDrive,
+    SharePoint, Outlook web) render the user's HTML inside an iframe whose
+    base URL is the viewer's domain, **not** the user's folder. Relative
+    ``<audio src="clip_NN.m4a">`` therefore 404s in the viewer even though
+    the file sits in the same folder when downloaded locally. data: URLs
+    sidestep this entirely — no network fetch happens.
+
+    Returns ``{}`` when no sibling audio was copied, ffmpeg is unavailable,
+    or every cut failed.
+    """
+    audio = output_audio(out_dir)
+    if audio is None:
+        return {}
+    pre = settings.audio_clip_pre_seconds
+    starts: list[int] = []
+    for t in synth.topics:
+        if t.source_timestamps:
+            s = clip_start(t.source_timestamps[0], pre)
+            if s is not None:
+                starts.append(s)
+    for a in synth.action_items:
+        if a.source_timestamps:
+            s = clip_start(a.source_timestamps[0], pre)
+            if s is not None:
+                starts.append(s)
+    cut_map = cut_clips(audio, starts, settings.audio_clip_duration_seconds, out_dir)
+    return {s: file_to_data_url(out_dir / name) for s, name in cut_map.items()}
 
 
 def run_pipeline(
@@ -65,11 +117,14 @@ def run_pipeline(
         review = ReviewResult.model_validate_json(review_path.read_text(encoding="utf-8"))
         synth = SynthesizedMinutes.model_validate_json(synth_path.read_text(encoding="utf-8"))
 
+        clips = _cut_audio_clips(out_dir, synth, settings)
+        log_kv(logger, "INFO", "stage.audio_clips", count=len(clips), mode="rerender")
+
         write_minutes_html(
             synth, review, str(out_dir / "minutes.html"),
             meeting_file=src, meta=synth.meta,
             pre=settings.audio_clip_pre_seconds,
-            duration=settings.audio_clip_duration_seconds,
+            clips=clips,
         )
         write_review_report_md(
             minutes, review, str(out_dir / "review_report.md"),
@@ -99,7 +154,7 @@ def run_pipeline(
         client_for_corrector = OpenAI(
             api_key=settings.openai_api_key, base_url=settings.openai_api_base
         )
-        mode_pre = probe_instructor_mode(client_for_corrector, model=settings.openai_model)
+        mode_pre = _resolve_instructor_mode(client_for_corrector, settings)
         corrector = CorrectorAgent(
             prompts_dir="script/prompts", client=client_for_corrector,
             model=settings.openai_model, instructor_mode=mode_pre,
@@ -130,7 +185,7 @@ def run_pipeline(
     log_kv(logger, "INFO", "stage.chunk", chunks=len(chunks))
 
     client = OpenAI(api_key=settings.openai_api_key, base_url=settings.openai_api_base)
-    mode = probe_instructor_mode(client, model=settings.openai_model)
+    mode = _resolve_instructor_mode(client, settings)
     log_kv(logger, "INFO", "instructor.mode", mode=mode)
 
     minutes_agent = MinutesAgent(
@@ -224,12 +279,15 @@ def run_pipeline(
     else:
         log_kv(logger, "INFO", "stage.audio_asset", status="missing")
 
+    clips = _cut_audio_clips(out_dir, synth, settings)
+    log_kv(logger, "INFO", "stage.audio_clips", count=len(clips))
+
     # Outputs
     write_minutes_html(
         synth, review, str(out_dir / "minutes.html"),
         meeting_file=src, meta=meta,
         pre=settings.audio_clip_pre_seconds,
-        duration=settings.audio_clip_duration_seconds,
+        clips=clips,
     )
     write_review_report_md(
         minutes, review, str(out_dir / "review_report.md"),

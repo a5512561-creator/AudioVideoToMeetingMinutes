@@ -130,22 +130,26 @@ def test_medium_priority_renders_label_and_data_attr(tmp_path):
     assert "中" in t  # medium -> 中 label
 
 
-def test_audio_buttons_present_when_audio_file_exists(tmp_path):
-    (tmp_path / "audio.m4a").write_text("fake", encoding="utf-8")
+def test_audio_buttons_present_when_clips_provided(tmp_path):
     dst = tmp_path / "m.html"
+    # Clip values are data URLs; the per-button data-clip attr is just the
+    # start-second key, which JS dereferences against the inlined CLIPS map.
+    clips = {345: "data:audio/mp4;base64,XYZ_TOPIC", 82: "data:audio/mp4;base64,XYZ_ACTION"}
     write_minutes_html(_synth(), ReviewResult(notes=[]), str(dst),
-                       meeting_file="x", pre=5, duration=10)
+                       meeting_file="x", pre=5, clips=clips)
     t = dst.read_text(encoding="utf-8")
-    assert '<audio id="clip" src="audio.m4a"' in t
+    assert '<audio id="clip"' in t
     assert 'class="play"' in t
-    assert 'data-start="345"' in t   # topic 00:05:50 -> 350-5
-    assert 'data-start="82"' in t    # action 00:01:27 -> 87-5
-    assert "var CLIP_LEN=10" in t
+    assert 'data-clip="345"' in t   # topic 00:05:50 -> 350-5
+    assert 'data-clip="82"' in t    # action 00:01:27 -> 87-5
+    # JS CLIPS dict carries the actual data URLs
+    assert '"345": "data:audio/mp4;base64,XYZ_TOPIC"' in t
+    assert '"82": "data:audio/mp4;base64,XYZ_ACTION"' in t
     assert 'class="src"' not in t
     assert "聽</th>" in t
 
 
-def test_no_audio_buttons_when_no_audio_file(tmp_path):
+def test_no_audio_buttons_when_clips_empty(tmp_path):
     dst = tmp_path / "m.html"
     write_minutes_html(_synth(), ReviewResult(notes=[]), str(dst),
                        meeting_file="x")
@@ -154,15 +158,50 @@ def test_no_audio_buttons_when_no_audio_file(tmp_path):
     assert 'class="play"' not in t
     assert 'class="src"' not in t
     assert "聽</th>" not in t
-    assert "CLIP_LEN" not in t
+    assert "var CLIPS=" not in t
 
 
-def test_audio_pre_roll_respected(tmp_path):
-    (tmp_path / "audio.mp3").write_text("fake", encoding="utf-8")
+def test_audio_pre_roll_used_for_clip_lookup(tmp_path):
     dst = tmp_path / "m.html"
+    # pre=10 → topic anchor 350-10=340, action anchor 87-10=77
+    clips = {340: "data:audio/mpeg;base64,T", 77: "data:audio/mpeg;base64,A"}
     write_minutes_html(_synth(), ReviewResult(notes=[]), str(dst),
-                       meeting_file="x", pre=10, duration=30)
+                       meeting_file="x", pre=10, clips=clips)
     t = dst.read_text(encoding="utf-8")
-    assert '<audio id="clip" src="audio.mp3"' in t
-    assert 'data-start="340"' in t   # 350 - 10
-    assert "var CLIP_LEN=30" in t
+    assert 'data-clip="340"' in t
+    assert 'data-clip="77"' in t
+
+
+def test_audio_button_omitted_when_clip_missing_for_anchor(tmp_path):
+    """Selective: if a topic's anchor has no matching clip, that ▶ is skipped
+    but other items with matching clips still render."""
+    dst = tmp_path / "m.html"
+    # Only action 87-5=82 has a clip; topic 350-5=345 does not.
+    clips = {82: "data:audio/mp4;base64,A"}
+    write_minutes_html(_synth(), ReviewResult(notes=[]), str(dst),
+                       meeting_file="x", pre=5, clips=clips)
+    t = dst.read_text(encoding="utf-8")
+    assert 'data-clip="82"' in t
+    assert 'data-clip="345"' not in t
+
+
+def test_clips_dict_contains_each_unique_url_once(tmp_path):
+    """When multiple decisions/actions share the same start, the JS CLIPS
+    dict still lists each URL exactly once (key-collapse via dict)."""
+    from script.schemas import SynthTopic, SynthAction
+    s = _synth(
+        topics=[SynthTopic(title="T", summary="s",
+                            decisions=["d1", "d2", "d3"],
+                            source_timestamps=["00:05:50"])],
+        action_items=[SynthAction(task="t", owner="o", due="d", priority="high",
+                                   source_timestamps=["00:05:50"])],
+    )
+    dst = tmp_path / "m.html"
+    clips = {345: "data:audio/mp4;base64,SHARED"}
+    write_minutes_html(s, ReviewResult(notes=[]), str(dst),
+                       meeting_file="x", pre=5, clips=clips)
+    t = dst.read_text(encoding="utf-8")
+    # 3 decisions + 1 action all share start=345 → 4 buttons with data-clip="345"
+    assert t.count('data-clip="345"') == 4
+    # but the data URL appears exactly once (in the JS CLIPS dict)
+    assert t.count("SHARED") == 1

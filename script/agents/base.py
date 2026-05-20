@@ -14,17 +14,45 @@ class FewShot:
 
 
 _THINK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
+# Locates a ```<lang>?\n…\n``` markdown code block anywhere in the string.
+# Reasoning models put valid JSON inside fences and sometimes also prepend
+# natural-language preamble ("OK, here is the consolidated output:\n\n```json…").
+# We search rather than anchor at start/end so both wrap modes are recovered.
+# Permissive on the language tag (json / blank / etc.) — models are inconsistent.
+_FENCE_RE = re.compile(
+    r"```[A-Za-z0-9]*\s*\n(.*?)\n\s*```",
+    re.DOTALL,
+)
+
+
+def _unfence(s: str | None) -> str | None:
+    """Extract the first ```lang\\n…\\n``` block's body from a tool-call
+    argument or content string. Returns the input unchanged when no fence
+    is present, so already-clean JSON passes through untouched."""
+    if not s:
+        return s
+    m = _FENCE_RE.search(s)
+    return m.group(1) if m else s
 
 
 def _strip_thinking_tokens(client):
-    """Wrap client.chat.completions.create to strip <think>...</think> blocks
-    and record per-call token usage.
+    """Wrap client.chat.completions.create to clean up two common OSS-reasoning-
+    model artefacts and record per-call token usage.
 
-    Required for OSS reasoning models (gpt-oss, deepseek-r1, qwen3-thinking,
-    Realtek's "medium" model) that prepend reasoning tokens to the actual JSON
-    payload — Instructor's JSON parser would choke on the prefix otherwise.
+    Cleanups applied to both ``message.content`` and every
+    ``tool_call.function.arguments``:
 
-    Side effect: each call appends a dict to client._usage_log with
+    1. ``<think>…</think>`` blocks — gpt-oss, deepseek-r1, qwen3-thinking and
+       Realtek's "medium" model sometimes leak reasoning tokens into the
+       output stream where Instructor's JSON parser expects a clean payload.
+    2. Triple-backtick markdown code fences — same family of reasoning
+       models will, when using Instructor's ``TOOLS`` mode, place valid JSON
+       inside fences as the tool-call ``arguments`` string. Pydantic then
+       sees a backtick at line-1-column-1 and rejects with
+       ``Invalid JSON: expected value at line 1 column 1``. Unfencing fixes
+       the call without forcing a mode change.
+
+    Side effect: each call appends a dict to ``client._usage_log`` with
     prompt_tokens / completion_tokens / total_tokens. Pipeline reads this to
     aggregate per-stage and per-pipeline token totals.
 
@@ -46,17 +74,19 @@ def _strip_thinking_tokens(client):
                 "completion_tokens": getattr(usage, "completion_tokens", 0) or 0,
                 "total_tokens": getattr(usage, "total_tokens", 0) or 0,
             })
-        # Strip thinking tokens from content + tool_call arguments.
+        # Strip thinking tokens AND markdown fences from content +
+        # tool_call arguments. Order: <think> blocks first (a fenced JSON
+        # could otherwise hide them), then fence unwrap on the trimmed text.
         for choice in getattr(resp, "choices", []):
             msg = getattr(choice, "message", None)
             if msg is None:
                 continue
             if getattr(msg, "content", None):
-                msg.content = _THINK_RE.sub("", msg.content)
+                msg.content = _unfence(_THINK_RE.sub("", msg.content))
             for tc in (getattr(msg, "tool_calls", None) or []):
                 fn = getattr(tc, "function", None)
                 if fn and getattr(fn, "arguments", None):
-                    fn.arguments = _THINK_RE.sub("", fn.arguments)
+                    fn.arguments = _unfence(_THINK_RE.sub("", fn.arguments))
         return resp
 
     client.chat.completions.create = _create
