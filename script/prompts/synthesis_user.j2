@@ -1,3 +1,11 @@
+{% for s in few_shots %}範例輸入：
+{{ s.input }}
+
+範例輸出：
+{{ s.output }}
+
+---
+{% endfor %}
 以下是已抽取去重的會議資訊 JSON，請依系統指示綜整為 SynthesizedMinutes：
 
 {{ minutes_json }}
