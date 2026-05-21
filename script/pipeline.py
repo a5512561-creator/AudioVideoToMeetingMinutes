@@ -143,8 +143,9 @@ def run_pipeline(
     if force or not transcript_path.exists():
         if not Path(src).exists():
             raise RuntimeError(f"transcript file not found: {src}")
-        load_transcript(src, str(transcript_path))
-        log_kv(logger, "INFO", "stage.load_transcript", output=str(transcript_path))
+        fmt = load_transcript(src, str(transcript_path))
+        log_kv(logger, "INFO", "stage.load_transcript",
+               output=str(transcript_path), format=fmt)
     else:
         log_kv(logger, "INFO", "stage.transcript.cached", path=str(transcript_path))
     transcript_text = transcript_path.read_text(encoding="utf-8")
