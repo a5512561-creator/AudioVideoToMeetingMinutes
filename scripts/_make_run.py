@@ -1,6 +1,6 @@
-"""Helper invoked by make.cmd ':run' to parse args + dispatch script.main.
+"""Helper invoked by the Makefile 'run' target to parse args + dispatch script.main.
 
-Why a Python helper instead of pure batch?
+Why a Python helper instead of inline Make recipe?
   Windows CMD's %*-style argv parsing breaks too easily on quoted paths
   containing spaces and non-ASCII (CJK) chars combined with KEY=VALUE
   syntax. Python's sys.argv handles this correctly because CMD
@@ -26,7 +26,8 @@ def _split_kv(arg: str):
 
 
 def main(argv: list[str]) -> int:
-    # argv[0] is always "run" (from make.cmd dispatch); skip it.
+    # argv[0] is always "run" (from Makefile target dispatch); skip it
+    # when present. Direct invocations without that prefix also work.
     args = argv[1:] if argv and argv[0].lower() == "run" else argv
 
     file_val = ""
