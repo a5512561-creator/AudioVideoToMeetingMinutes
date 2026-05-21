@@ -37,6 +37,8 @@
     .p-low{color:#276749}
     .play{margin-left:6px;border:1px solid #cbd5e0;background:#edf2f7;color:#2b6cb0;border-radius:4px;padding:0 7px;font-size:.8rem;cursor:pointer;line-height:1.6}
     .play:hover{background:#bee3f8}
+    .ctx{margin-top:4px;font-size:.82rem;color:#718096;line-height:1.4;border-left:2px solid #cbd5e0;padding-left:8px}
+    .ctx-label{font-weight:600;color:#4a5568;margin-right:4px}
     .disclaimer{background:#fffbea;border:1px solid #f6e05e;border-radius:6px;padding:10px 14px;font-size:.85rem;color:#7d6608;margin-bottom:12px}
     .rev{background:#fff;border-radius:8px;padding:14px 16px;margin-bottom:10px;border-left:4px solid #cbd5e0}
     .rev[hidden]{display:none!important}
@@ -101,7 +103,10 @@
         {% for a in actions %}
         <tr class="searchable" data-priority="{{ a.priority }}">
           <td>{{ a.idx }}</td>
-          <td>{{ a.task }}</td>
+          <td>
+            <div>{{ a.task }}</div>
+            {% if a.context %}<div class="ctx"><span class="ctx-label">前因：</span>{{ a.context }}</div>{% endif %}
+          </td>
           <td>{{ a.owner }}</td>
           <td>{{ a.due }}</td>
           <td class="p-{{ a.priority }}">{{ {'high':'高','medium':'中','low':'低'}.get(a.priority, a.priority) }}</td>

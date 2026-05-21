@@ -85,6 +85,9 @@ def write_minutes_html(
             "owner": a.owner,
             "due": a.due,
             "priority": a.priority,
+            # `context` (前因) — added in v9, missing on older cached
+            # SynthesizedMinutes JSON (loaded via Pydantic default "")
+            "context": getattr(a, "context", "") or "",
             "clip": _clip_key_for(a.source_timestamps, pre, clips),
         }
         for i, a in enumerate(synth.action_items, start=1)

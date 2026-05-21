@@ -15,6 +15,10 @@ class Action(BaseModel):
     owner: str
     due: str
     priority: Literal["high", "medium", "low"]
+    # 前因 / 背景 / trigger — why this action exists business-wise. Different
+    # from `rationale` (meta — why the LLM marked this an action). Empty
+    # string default keeps older cached intermediate JSON loadable.
+    context: str = ""
     source_quote: str
     source_timestamp: str
     source_speaker: str | None = None
@@ -83,6 +87,9 @@ class SynthAction(BaseModel):
     owner: str
     due: str
     priority: Literal["high", "medium", "low"]
+    # 前因 / 背景 — carried over (or merged) from the underlying extracted
+    # Action.context. UI shows this as "前因" on the action row.
+    context: str = ""
     source_timestamps: list[str] = []
 
 

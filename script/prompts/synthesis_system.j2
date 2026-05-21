@@ -22,6 +22,11 @@
 4. **保留 action 的執行細節**（重要）：task 描述要保留情境、輸出、目的，不要壓縮成單一動詞短句。
    - 好範例：「整理 coverage 檢視資料，包含逐條列出未覆蓋點、補上各項 cover 原因並輸出成表格，供後續 review 使用」
    - 壞範例：「整理 coverage」（資訊量太低，看了不知道要做什麼）
+4a. **`context` 欄位（前因，必填）**：每條 action 都要說明**為何要做**這件事的業務 trigger。輸入 Action JSON 已有 `context`（minutes_agent 從逐字稿上下文抽取），請：
+   - **原樣保留**該 context（若一條輸出 action 對應多條輸入 action，合併它們的 context，去重 / 串接）
+   - 若輸入 context 為空，盡力從同 source_quote 的前後關係推論前因；推論不出來才填「會議中未明說」
+   - **task 文字內不要再重複 context**（避免冗餘）。task 寫「**做什麼**」，context 寫「**為何**」。
+   - 例：task="完成 API 規格" + context="客戶 demo 在下週、目前 API 規格未定，這是 blocker"（兩條互補，不重複）
 5. **Owner / Due 推論**：
    - 輸入的 action 若已有 owner（如「我這邊」、「小王」），**原樣保留**到輸出，不要因為要齊頭式整潔而改成「未明」。
    - 輸入的 action 若已有 due（如「下週五」、「等一下」、「這禮拜」），**原樣保留**口語化的時間表達。

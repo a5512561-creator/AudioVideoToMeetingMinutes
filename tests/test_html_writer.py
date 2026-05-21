@@ -185,6 +185,40 @@ def test_audio_button_omitted_when_clip_missing_for_anchor(tmp_path):
     assert 'data-clip="345"' not in t
 
 
+def test_action_renders_context_when_present(tmp_path):
+    """前因 / context — when non-empty, shows beneath the task with the
+    "前因：" label so readers see why this action exists, not just what."""
+    from script.schemas import SynthAction
+    s = _synth(action_items=[
+        SynthAction(task="完成 API 規格", owner="小王", due="下週五",
+                    priority="high",
+                    context="下週要 demo、目前 API 規格未定為 blocker",
+                    source_timestamps=["00:05:20"]),
+    ])
+    dst = tmp_path / "m.html"
+    write_minutes_html(s, ReviewResult(notes=[]), str(dst), meeting_file="x")
+    t = dst.read_text(encoding="utf-8")
+    assert "前因：" in t
+    assert "下週要 demo" in t  # context content rendered
+    assert 'class="ctx"' in t  # CSS class for styling
+
+
+def test_action_skips_context_block_when_empty(tmp_path):
+    """No 前因 row should appear when context is empty (back-compat: older
+    cached SynthesizedMinutes JSON had no context field at all)."""
+    from script.schemas import SynthAction
+    s = _synth(action_items=[
+        SynthAction(task="任意任務", owner="未明", due="未明",
+                    priority="medium",
+                    source_timestamps=["00:00:00"]),  # context defaults to ""
+    ])
+    dst = tmp_path / "m.html"
+    write_minutes_html(s, ReviewResult(notes=[]), str(dst), meeting_file="x")
+    t = dst.read_text(encoding="utf-8")
+    assert "前因：" not in t
+    assert 'class="ctx"' not in t
+
+
 def test_clips_dict_contains_each_unique_url_once(tmp_path):
     """When multiple decisions/actions share the same start, the JS CLIPS
     dict still lists each URL exactly once (key-collapse via dict)."""
