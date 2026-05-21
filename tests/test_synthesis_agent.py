@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 from script.schemas import (
     Conclusion, Action, MeetingMinutes, MeetingMeta,
+    ReviewNote, ReviewResult,
     SynthesizedMinutes, SynthTopic, SynthAction,
 )
 from script.agents.synthesis_agent import SynthesisAgent
@@ -46,3 +47,59 @@ def test_synthesize_passes_minutes_json_and_injects_meta():
     user_ctx = a.render.call_args_list[1].kwargs
     assert "KPI 不納入考核" in user_ctx["minutes_json"]
     assert a.call.call_args.kwargs["response_model"] is SynthesizedMinutes
+
+
+def test_synthesize_embeds_ids_in_minutes_payload():
+    """Synthesis input must carry C1/A1/K1 IDs so review.notes target_id
+    actually resolves to a recognisable item in the prompt."""
+    a = _make_agent()
+    a.call.return_value = SynthesizedMinutes(topics=[], action_items=[])
+    minutes = MeetingMinutes(conclusions=[_conc(), _conc()], actions=[_act()])
+    meta = MeetingMeta(meeting_date="d", duration_hint="h")
+
+    a.synthesize(minutes, meta)
+
+    payload = a.render.call_args_list[1].kwargs["minutes_json"]
+    assert '"id": "C1"' in payload
+    assert '"id": "C2"' in payload
+    assert '"id": "A1"' in payload
+
+
+def test_synthesize_forwards_only_warn_and_error_notes():
+    """review_warns must include warn + error notes but drop info-level OK."""
+    a = _make_agent()
+    a.call.return_value = SynthesizedMinutes(topics=[], action_items=[])
+    minutes = MeetingMinutes(conclusions=[_conc()], actions=[_act()])
+    meta = MeetingMeta(meeting_date="d", duration_hint="h")
+    review = ReviewResult(notes=[
+        ReviewNote(target_section="conclusion", target_id="C1",
+                   category="ok", severity="info", note="", suggestion=""),
+        ReviewNote(target_section="action", target_id="A1",
+                   category="ambiguity", severity="warn",
+                   note="缺乏交付物", suggestion="補上輸出形式"),
+        ReviewNote(target_section="conclusion", target_id="C1",
+                   category="conflict", severity="error",
+                   note="與其他結論矛盾", suggestion="重審"),
+    ])
+
+    a.synthesize(minutes, meta, review=review)
+
+    warns = a.render.call_args_list[1].kwargs["review_warns"]
+    assert len(warns) == 2  # info dropped, warn+error kept
+    severities = {w["severity"] for w in warns}
+    assert severities == {"warn", "error"}
+    target_ids = {w["target_id"] for w in warns}
+    assert target_ids == {"A1", "C1"}
+
+
+def test_synthesize_passes_empty_review_warns_when_no_review():
+    """Backward compatible: review=None → review_warns is []."""
+    a = _make_agent()
+    a.call.return_value = SynthesizedMinutes(topics=[], action_items=[])
+    minutes = MeetingMinutes(conclusions=[_conc()], actions=[_act()])
+    meta = MeetingMeta(meeting_date="d", duration_hint="h")
+
+    a.synthesize(minutes, meta)  # no review kwarg
+
+    warns = a.render.call_args_list[1].kwargs["review_warns"]
+    assert warns == []

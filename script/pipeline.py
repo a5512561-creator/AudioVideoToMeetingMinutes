@@ -240,7 +240,9 @@ def run_pipeline(
         model=settings.openai_model, instructor_mode=mode,
     )
     usage_before_synth = len(getattr(client, "_usage_log", []))
-    synth = synth_agent.synthesize(minutes, meta)
+    # Pass review notes so synthesis can address flagged items rather than
+    # copy them verbatim (e.g. ambiguity → expand detail, conflict → reconcile).
+    synth = synth_agent.synthesize(minutes, meta, review=review)
     (inter_dir / "synthesized.json").write_text(
         synth.model_dump_json(), encoding="utf-8",
     )

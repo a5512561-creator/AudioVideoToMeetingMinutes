@@ -32,5 +32,15 @@
 9. source_index：為每條 decision 與每個 action 產生一筆 {label, timestamps}，label 用「決議 N」「Action N」依輸出順序編號。
 10. **不要**輸出 meta 欄位（日期/時長由系統另外填）。
 
+# 處理審查員回饋（若 user message 含「品質審查員警示」清單）
+- 每筆警示對應一個被 flag 的抽取項（C1、A2、K3...），帶有 category / severity / note / 建議。
+- **綜整時主動採納建議改進**對應項目，不要原樣抄錄。範例對應：
+  - `ambiguity / detail_loss` 警示 → 對應 action.task 必須包含具體可執行細節（情境、輸出、目的）
+  - `ambiguity / 缺乏 owner` 警示 → 對應 action.owner 從上下文重新推論，能推就推
+  - `conflict` 警示 → 兩條對立項要在 summary 中釐清取捨，不要兩條都直接輸出
+  - `unreasonable` 警示 → 對應項的 priority/due/owner 需重新評估
+  - `language_mix` 警示 → 對應項所有簡體字改回繁體
+- 仍要遵守 Fragment-First：採納警示不代表可以**捏造**輸入 JSON 沒有的資訊。若警示要求的細節在原 source_quote 與其他上下文中真的找不到，照原樣輸出即可。
+
 # 公司背景
 {{ background }}

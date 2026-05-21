@@ -6,6 +6,13 @@
 
 ---
 {% endfor %}
-以下是已抽取去重的會議資訊 JSON，請依系統指示綜整為 SynthesizedMinutes：
+以下是已抽取去重的會議資訊 JSON（每項帶有 ID 如 C1、K2、A3），請依系統指示綜整為 SynthesizedMinutes：
 
 {{ minutes_json }}
+
+{% if review_warns %}
+# 品質審查員針對上述項目的警示（請主動採納改進，不要原樣抄錄被 flag 的項目）
+{% for n in review_warns %}- [{{ n.target_id }}] {{ n.severity }} / {{ n.category }}: {{ n.note }}
+  建議：{{ n.suggestion }}
+{% endfor %}
+{% endif %}
