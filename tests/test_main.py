@@ -38,3 +38,25 @@ def test_cli_rejects_removed_diarize_flag(monkeypatch, tmp_path):
     with patch("script.main.run_pipeline"):
         result = runner.invoke(app, ["transcript.txt", "--diarize"])
     assert result.exit_code != 0
+
+
+def test_cli_model_override(monkeypatch, tmp_path):
+    """--model overrides the .env OPENAI_MODEL for this run only."""
+    _env(monkeypatch, tmp_path)  # .env model is "m"
+    runner = CliRunner()
+    with patch("script.main.run_pipeline") as run:
+        result = runner.invoke(
+            app, ["transcript.txt", "--name", "t", "--model", "claude-opus-4-7"]
+        )
+    assert result.exit_code == 0, result.output
+    assert run.call_args.kwargs["settings"].openai_model == "claude-opus-4-7"
+
+
+def test_cli_no_model_keeps_env_default(monkeypatch, tmp_path):
+    """Without --model, settings.openai_model stays the .env value."""
+    _env(monkeypatch, tmp_path)  # OPENAI_MODEL="m"
+    runner = CliRunner()
+    with patch("script.main.run_pipeline") as run:
+        result = runner.invoke(app, ["transcript.txt", "--name", "t"])
+    assert result.exit_code == 0, result.output
+    assert run.call_args.kwargs["settings"].openai_model == "m"

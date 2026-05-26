@@ -28,6 +28,18 @@
 
 `NAME` 是輸出資料夾名稱（`out\<NAME>\`）。`run` 省略 `NAME=` 時用逐字稿檔名作為資料夾名。
 
+## 中文路徑：用 `run.ps1`（不要用 `make run`）
+
+GNU `make.exe`（ezwinports MinGW build）在 Big5/cp950 Windows 上**會把非 ASCII 的命令列引數與傳給子行程的環境變數整個重編成 ANSI 而損壞**。Teams 匯出的逐字稿檔名幾乎都是中文（`…會議錄製.vtt`），所以**中文路徑無法走 `make run`**（argv、env 兩條路都試過，都壞）。
+
+中文路徑請改用 `run.ps1`（PowerShell→python 直達，UTF-16 全程不碰 make.exe）：
+
+```powershell
+.\run.ps1 "src\20260526_..._驗證狀況了解\I2S FPGA ...會議錄製.vtt" I2S_FPGA_20260526
+```
+
+第二個參數（NAME）可省略，預設用檔名。**純 ASCII 路徑** `make run SRC=... NAME=...` 跟 `run.ps1` 兩者皆可。其餘 `make test/clean/rerender/open` 不受影響（NAME 都是你自訂的 ASCII，沒問題）。
+
 ## 輸入格式（auto-detect）
 
 `load_transcript` 會看 transcript 第一行非空字串自動分流，無需手動指定：

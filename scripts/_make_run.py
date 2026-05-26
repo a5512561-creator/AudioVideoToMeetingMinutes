@@ -18,8 +18,8 @@ from pathlib import Path
 
 
 def _split_kv(arg: str):
-    """If arg starts with FILE=/NAME= return (key, value) else None."""
-    for prefix in ("FILE=", "NAME="):
+    """If arg starts with FILE=/NAME=/MODEL= return (key, value) else None."""
+    for prefix in ("FILE=", "NAME=", "MODEL="):
         if arg.upper().startswith(prefix):
             return prefix[:-1], arg[len(prefix):]
     return None
@@ -32,6 +32,7 @@ def main(argv: list[str]) -> int:
 
     file_val = ""
     name_val = ""
+    model_val = ""
     positional: list[str] = []
 
     for a in args:
@@ -44,24 +45,30 @@ def main(argv: list[str]) -> int:
                 file_val = v
             elif k == "NAME":
                 name_val = v
+            elif k == "MODEL":
+                model_val = v
 
     # Fill from positional only if KEY=VALUE didn't set
     if not file_val and len(positional) >= 1:
         file_val = positional[0]
     if not name_val and len(positional) >= 2:
         name_val = positional[1]
+    if not model_val and len(positional) >= 3:
+        model_val = positional[2]
 
     if not file_val:
         print("ERROR: FILE is required.", file=sys.stderr)
         print("Usage:", file=sys.stderr)
-        print('  make run "path\\to\\transcript.txt" [NAME]', file=sys.stderr)
-        print('  make run FILE="path\\to\\transcript.txt" [NAME=name]', file=sys.stderr)
+        print('  make run "path\\to\\transcript.txt" [NAME] [MODEL]', file=sys.stderr)
+        print('  make run FILE="path\\to\\transcript.txt" [NAME=name] [MODEL=claude-opus-4-7]', file=sys.stderr)
         return 1
 
     py = str(Path(sys.prefix) / ("Scripts" if os.name == "nt" else "bin") / "python")
     cmd = [py, "-m", "script.main", file_val]
     if name_val:
         cmd += ["--name", name_val]
+    if model_val:
+        cmd += ["--model", model_val]
 
     return subprocess.run(cmd).returncode
 

@@ -33,9 +33,13 @@ PYTEST := $(PY) -m pytest
 # We only enforce SRC / NAME when the matching target is the actual goal.
 # That way `make help` / `make test` / `make clean` keep working without
 # args, while `make run` without SRC fails fast with a useful message.
+#
+# NOTE: SRC must be ASCII. GNU make.exe (MinGW) on a Big5 Windows mangles
+# CJK in both argv and its child env block, so a Chinese-named transcript
+# path cannot survive `make run`. Use run.ps1 for CJK paths (see make.md).
 ifeq (run,$(filter run,$(MAKECMDGOALS)))
 ifndef SRC
-$(error SRC is required. Usage: make run SRC="path\to\transcript" [NAME=foo])
+$(error SRC is required. ASCII path: make run SRC="path" NAME=foo. CJK path: use .\run.ps1 "path" NAME)
 endif
 endif
 ifeq (rerender,$(filter rerender,$(MAKECMDGOALS)))
@@ -97,11 +101,13 @@ test-verbose:
 	$(PYTEST) -p no:cacheprovider -v
 
 # ── Pipeline ─────────────────────────────────────────────────────────────
-# scripts/_make_run.py is the existing CJK/space-safe arg parser that
-# make.cmd already delegates to; we reuse it verbatim. NAME is optional
-# (helper defaults it to the SRC basename).
+# scripts/_make_run.py is the space-safe arg parser. SRC is quoted because
+# even ASCII paths may contain spaces. CJK paths can't come through make
+# (make.exe mangles them) — use .\run.ps1 instead.
+# MODEL is optional: overrides .env's medium (on-prem) for this run, e.g.
+# `make run SRC="x.txt" NAME=foo MODEL=claude-opus-4-7` for a cloud model.
 run:
-	$(PY) scripts/_make_run.py $(SRC) $(NAME)
+	$(PY) scripts/_make_run.py "$(SRC)" $(NAME) $(if $(MODEL),MODEL=$(MODEL))
 
 rerender:
 	$(PY) -m script.main "(rerender)" --name $(NAME) --rerender
