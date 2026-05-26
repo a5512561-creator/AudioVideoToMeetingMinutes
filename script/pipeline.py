@@ -6,6 +6,7 @@ from openai import OpenAI
 
 from script.config import Settings
 from script.logger import setup_logger, log_kv
+from script.progress import Heartbeat
 from script.transcript_loader import load_transcript
 from script.chunker import chunk_transcript
 from script.markdown_writer import write_review_report_md
@@ -189,16 +190,30 @@ def run_pipeline(
     mode = _resolve_instructor_mode(client, settings)
     log_kv(logger, "INFO", "instructor.mode", mode=mode)
 
+    # Progress heartbeat: estimate total LLM calls = map (1/chunk) + reduce
+    # (~N-1 in the tree, ≥1) + review (1) + synthesis (1). Slight over-count
+    # keeps the % from sticking at 100% before pipeline.done.
+    _n = len(chunks)
+    heartbeat = Heartbeat(
+        logger,
+        calls_done_fn=lambda: len(getattr(client, "_usage_log", [])),
+        total_estimate=_n + max(1, _n - 1) + 2,
+        interval=settings.progress_interval_secs,
+    )
+    heartbeat.start()
+
     minutes_agent = MinutesAgent(
         prompts_dir="script/prompts", client=client,
         model=settings.openai_model, instructor_mode=mode,
     )
+    heartbeat.set_stage("minutes:map")
     usage_before_minutes = len(getattr(client, "_usage_log", []))
     extracts = minutes_agent.map_chunks(chunks, parallel=settings.llm_parallel_map)
     (inter_dir / "map_outputs.json").write_text(
         json.dumps([e.model_dump() for e in extracts], ensure_ascii=False),
         encoding="utf-8",
     )
+    heartbeat.set_stage("minutes:reduce")
     minutes = minutes_agent.reduce(
         extracts, max_input_chars=settings.llm_chunk_tokens * 2,
     )
@@ -217,6 +232,7 @@ def run_pipeline(
         prompts_dir="script/prompts", client=client,
         model=settings.openai_model, instructor_mode=mode,
     )
+    heartbeat.set_stage("review")
     usage_before_review = len(getattr(client, "_usage_log", []))
     review = reviewer.review(minutes)
     (inter_dir / "review.json").write_text(
@@ -240,6 +256,7 @@ def run_pipeline(
         prompts_dir="script/prompts", client=client,
         model=settings.openai_model, instructor_mode=mode,
     )
+    heartbeat.set_stage("synthesis")
     usage_before_synth = len(getattr(client, "_usage_log", []))
     # Pass review notes so synthesis can address flagged items rather than
     # copy them verbatim (e.g. ambiguity → expand detail, conflict → reconcile).
@@ -256,6 +273,7 @@ def run_pipeline(
            calls=synth_usage["calls"],
            tokens_in=synth_usage["prompt_tokens"],
            tokens_out=synth_usage["completion_tokens"])
+    heartbeat.stop()  # LLM stages done; remaining work (audio, render) is fast
 
     # Aggregate token usage + optional cost summary
     total = usage_summary(getattr(client, "_usage_log", []))
