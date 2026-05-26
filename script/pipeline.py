@@ -97,7 +97,8 @@ def run_pipeline(
     inter_dir = out_dir / "intermediate"
     out_dir.mkdir(parents=True, exist_ok=True)
     inter_dir.mkdir(parents=True, exist_ok=True)
-    logger = setup_logger("pipeline", log_dir=settings.log_dir, level=settings.log_level)
+    logger = setup_logger("pipeline", log_dir=settings.log_dir,
+                          level=settings.log_level, run_label=base_name)
     log_kv(logger, "INFO", "pipeline.start", file=src, name=base_name,
            rerender_only=rerender_only)
 

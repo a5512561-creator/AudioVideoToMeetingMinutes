@@ -22,3 +22,29 @@ def test_setup_logger_writes_to_file(tmp_path):
     content = files[0].read_text(encoding="utf-8")
     assert "hello k=v" in content
     assert re.search(r"\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]", content)
+
+
+def test_log_filename_includes_meeting_label(tmp_path):
+    """run_label becomes a filename postfix so logs are identifiable."""
+    setup_logger("test_lbl", log_dir=str(tmp_path), run_label="I2S_FPGA_20260526")
+    files = [f.name for f in tmp_path.glob("run_*.log")]
+    assert len(files) == 1
+    assert files[0].endswith("_I2S_FPGA_20260526.log")
+    assert re.match(r"run_\d{8}-\d{6}_I2S_FPGA_20260526\.log", files[0])
+
+
+def test_log_filename_sanitizes_unsafe_label(tmp_path):
+    """Spaces / path separators / illegal chars in the label become _."""
+    setup_logger("test_lbl2", log_dir=str(tmp_path),
+                 run_label='5月18日 下午2-07/leader:sync')
+    name = next(tmp_path.glob("run_*.log")).name
+    # No filename-illegal chars survive; CJK is kept (valid on NTFS).
+    for bad in '<>:"/\\|?* ':
+        assert bad not in name.replace(".log", "")
+    assert "5月18日" in name
+
+
+def test_log_filename_no_label_keeps_plain_form(tmp_path):
+    setup_logger("test_lbl3", log_dir=str(tmp_path))  # no run_label
+    name = next(tmp_path.glob("run_*.log")).name
+    assert re.match(r"run_\d{8}-\d{6}\.log", name)
