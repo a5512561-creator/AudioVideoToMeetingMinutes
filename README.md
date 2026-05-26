@@ -71,7 +71,11 @@ Outputs land in `out\<name>\`:
 - `transcript.md` — normalized, timestamped transcript (no speaker labels)
 - `intermediate\` — chunks, raw map outputs, minutes.json, review.json
 
-Logs land in `log\run_YYYYMMDD-HHMMSS.log`.
+Logs land in `log\run_YYYYMMDD-HHMMSS_<meeting>.log` (one per run, meeting
+name appended for easy identification). The run also emits a periodic
+`progress` heartbeat during the LLM stages so a slow model doesn't look like
+a hang. See `doc/logging.md` for the full log format, event reference, and
+the `PROGRESS_INTERVAL_SECS` setting.
 
 ## Tests
 
