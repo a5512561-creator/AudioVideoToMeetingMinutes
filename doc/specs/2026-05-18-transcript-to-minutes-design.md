@@ -190,3 +190,47 @@ speaker 版逐字稿為未來功能。
 - speaker 標記逐字稿解析：待使用者提供真實樣本後，於 §4.1 擴充點實作；
   以設定（如 `TRANSCRIPT_HAS_SPEAKER`）或自動偵測切換。
 - 是否清理 prompts / few-shot 中 speaker 措辭，待 speaker 功能定案再評估。
+
+## 9. 日誌與進度觀測（Logging / Progress）
+
+pipeline 每跑一次同時把結構化日誌輸出到**主控台**與**檔案**（`script/logger.py`）。
+
+### 9.1 檔案位置與命名
+
+- 目錄：`log/`（`.env` 的 `LOG_DIR`，預設 `log`）。每跑一次一個檔。
+- 命名：`run_<YYYYMMDD-HHMMSS>_<會議名>.log`，例 `run_20260526-144430_I2S_FPGA_20260526.log`。
+- `<會議名>` 取輸出資料夾名（`--name` / `make run NAME=` / `run.ps1` 第二參數；省略時取逐字稿檔名），經檔名安全化：Windows 不合法字元 `<>:"/\|?*` 與空白換 `_`，中文保留（NTFS 合法），上限 60 字。無會議名時退回 `run_<ts>.log`。
+
+### 9.2 行格式
+
+`[YYYY-MM-DD HH:MM:SS] LEVEL  event key1=value1 ...`（結構化 `event k=v`，方便 grep）。
+層級由 `LOG_LEVEL` 控制（預設 `INFO`）；`-v` / `--verbose` → `DEBUG`。
+
+### 9.3 主要事件
+
+| event | 重要欄位 |
+|---|---|
+| `pipeline.start` | `file= name= rerender_only=` |
+| `stage.load_transcript` | `format=android\|vtt`（驗證 auto-detect）|
+| `stage.chunk` | `chunks=` |
+| `instructor.mode` | `TOOLS` / `JSON` |
+| `progress` | 進度心跳（見 §9.4）|
+| `stage.minutes` / `stage.review` / `stage.synthesis` | 各階段完成統計 + `calls= tokens_in/out=` |
+| `stage.audio_asset` / `stage.audio_clips` | `copied=`／`status=missing`、`count=` |
+| `pipeline.tokens` | 全程 token + `cost=` |
+| `pipeline.done` | `out=` |
+
+### 9.4 進度心跳（Progress Heartbeat）
+
+`script/progress.py` 的 `Heartbeat` daemon thread 在 LLM 階段固定間隔吐一行，避免慢模型看起來像當機：
+
+```
+progress stage=minutes:reduce calls=2/~5 pct=40% elapsed=1m40s
+```
+
+- `stage`：`minutes:map` → `minutes:reduce` → `review` → `synthesis`。
+- `calls`：已完成 LLM 呼叫 / 預估總數（map + reduce + review + synthesis）。
+- `pct`：約略完成度（已完成/預估），封頂 99%；真正完成看 `pipeline.done`。
+- `elapsed`：自 pipeline 開始經過時間。
+- 設定 `PROGRESS_INTERVAL_SECS`（`.env`，預設 60，設 0 關閉）。
+- **特性**：單一慢 call 期間 `pct` 停著、`elapsed` 持續跳 → 「卡住」與「還在跑」可區分。對地端 `medium` 偶發單通數分鐘特別有用。

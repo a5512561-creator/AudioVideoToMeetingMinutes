@@ -74,8 +74,8 @@ Outputs land in `out\<name>\`:
 Logs land in `log\run_YYYYMMDD-HHMMSS_<meeting>.log` (one per run, meeting
 name appended for easy identification). The run also emits a periodic
 `progress` heartbeat during the LLM stages so a slow model doesn't look like
-a hang. See `doc/logging.md` for the full log format, event reference, and
-the `PROGRESS_INTERVAL_SECS` setting.
+a hang. See §9 of `doc/specs/2026-05-18-transcript-to-minutes-design.md` for
+the full log format, event reference, and the `PROGRESS_INTERVAL_SECS` setting.
 
 ## Tests
 
