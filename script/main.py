@@ -1,5 +1,8 @@
+from pathlib import Path
+
 import typer
 from script.config import Settings
+from script.finalize import run_finalize
 from script.pipeline import run_pipeline
 
 
@@ -36,6 +39,21 @@ def process(
         force=force,
         rerender_only=rerender,
     )
+
+
+@app.command()
+def finalize(
+    src: str = typer.Argument(..., help="逐字稿路徑或既有輸出資料夾名（用來定位 out/<name>）。"),
+    name: str | None = typer.Option(None, "--name", help="輸出資料夾名（預設取 src basename）。"),
+    reuse: bool = typer.Option(
+        False, "--reuse",
+        help="沿用上次 finalized.json 當 Q&A 預設值（避免重問）。"),
+) -> None:
+    """互動式確認會議記錄並開啟 Outlook 草稿（不寄出）。"""
+    settings = Settings()
+    base_name = name or Path(src).stem
+    out_dir = str(Path(settings.out_dir) / base_name)
+    run_finalize(out_dir, default_subject=Path(src).stem, reuse=reuse)
 
 
 if __name__ == "__main__":
