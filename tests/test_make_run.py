@@ -14,7 +14,7 @@ def _run(argv):
 
 def test_positional_file_only():
     cmd = _run(["src/m.txt"])
-    assert cmd[-3:] == ["-m", "script.main", "src/m.txt"]
+    assert cmd[-4:] == ["-m", "script.main", "process", "src/m.txt"]
     assert "--name" not in cmd
     assert "--model" not in cmd
 
@@ -41,7 +41,8 @@ def test_kv_model_form():
 def test_run_prefix_is_skipped():
     """Makefile dispatches with a leading 'run' token; it must be dropped."""
     cmd = _run(["run", "src/m.txt", "q2", "MODEL=fast"])
-    assert cmd[cmd.index("script.main") + 1] == "src/m.txt"
+    assert cmd[cmd.index("script.main") + 1] == "process"
+    assert cmd[cmd.index("script.main") + 2] == "src/m.txt"
     assert cmd[cmd.index("--model") + 1] == "fast"
 
 

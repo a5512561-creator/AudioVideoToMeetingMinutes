@@ -81,9 +81,9 @@ make open NAME=leadersync_20260518
 
 - **`run` 不帶 `--force`**：`transcript.md` 會沿用快取（Stage 1 略過），但 map/reduce/review/synthesis 仍整個重跑。要完全忽略所有快取、從頭跑：
   ```
-  .venv\Scripts\python.exe -m script.main "<逐字稿檔>" --name <NAME> --force
+  .venv\Scripts\python.exe -m script.main process "<逐字稿檔>" --name <NAME> --force
   ```
 - `rerender` 需要先有過一次完整 `run`（要有 `intermediate\{minutes,review,synthesized}.json`），否則會報錯列出缺哪個檔。
-- CLI 是單命令（**沒有** `process` 子命令）：底層就是 `python -m script.main <SRC> [--name N] [--force] [--rerender]`。
+- CLI 是**多命令**（有 `process` 與 `finalize` 子命令）：底層就是 `python -m script.main process <SRC> [--name N] [--force] [--rerender]`。
 - 輸入是**已備妥的逐字稿文字檔**（UTF-8）。不吃音訊檔。
 - Teams VTT 場景下沒有 sibling audio（影片太大刻意不附），▶ 按鈕自動不顯示。
