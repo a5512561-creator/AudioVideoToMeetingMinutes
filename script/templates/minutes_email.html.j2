@@ -36,4 +36,5 @@ JIRA連結 (optional)：{{ m.jira }}
 {% endfor %}
 </table>
 <p>Best regards,<br>{{ m.recorder }}</p>
+{% if m.llm_model %}<p style="font-size:12px;color:#888;">※ 本會議記錄由 LLM（{{ m.llm_model }}）依逐字稿自動整理，內容請人工校閱。</p>{% endif %}
 </div>

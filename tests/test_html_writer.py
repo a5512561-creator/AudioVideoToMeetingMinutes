@@ -239,3 +239,20 @@ def test_clips_dict_contains_each_unique_url_once(tmp_path):
     assert t.count('data-clip="345"') == 4
     # but the data URL appears exactly once (in the JS CLIPS dict)
     assert t.count("SHARED") == 1
+
+
+def test_html_shows_llm_model(tmp_path):
+    dst = tmp_path / "m.html"
+    s = _synth(meta=MeetingMeta(meeting_date="2026/05/18",
+                                duration_hint="約 1h",
+                                llm_model="claude-opus-4-8"))
+    write_minutes_html(s, ReviewResult(notes=[]), str(dst), meeting_file="x")
+    t = dst.read_text(encoding="utf-8")
+    assert "LLM 整理" in t and "claude-opus-4-8" in t
+
+
+def test_html_omits_llm_when_blank(tmp_path):
+    dst = tmp_path / "m2.html"
+    write_minutes_html(_synth(), ReviewResult(notes=[]), str(dst), meeting_file="x")
+    t = dst.read_text(encoding="utf-8")
+    assert "LLM 整理" not in t

@@ -192,6 +192,7 @@ def test_meeting_meta_new_fields_default_empty():
     assert m.doc_links == ""
     assert m.video_links == ""
     assert m.jira == ""
+    assert m.llm_model == ""
 
 
 def test_finalized_minutes_model():

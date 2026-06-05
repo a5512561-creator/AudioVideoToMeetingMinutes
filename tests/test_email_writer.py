@@ -80,3 +80,21 @@ def test_email_html_escapes_text(tmp_path):
     write_email_html(f, str(dst))
     html = dst.read_text(encoding="utf-8")
     assert "&lt;b&gt;" in html and "&amp;" in html
+
+
+def test_email_html_shows_llm_model_note(tmp_path):
+    f = _final()
+    f.meta.llm_model = "claude-opus-4-8"
+    dst = tmp_path / "e.html"
+    write_email_html(f, str(dst))
+    html = dst.read_text(encoding="utf-8")
+    assert "claude-opus-4-8" in html
+    assert "LLM" in html and "人工校閱" in html
+
+
+def test_email_html_omits_llm_note_when_blank(tmp_path):
+    f = _final()  # llm_model defaults to ""
+    dst = tmp_path / "e2.html"
+    write_email_html(f, str(dst))
+    html = dst.read_text(encoding="utf-8")
+    assert "人工校閱" not in html

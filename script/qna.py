@@ -70,6 +70,7 @@ def run_qna(initial: FinalizedMinutes, *, inp=input, out=print) -> FinalizedMinu
         doc_links=_ask(inp, "會議文件", m.doc_links),
         video_links=_ask(inp, "會議錄影", m.video_links),
         jira=_ask(inp, "JIRA連結 (optional)", m.jira),
+        llm_model=_ask(inp, "整理工具 (LLM)", m.llm_model),
     )
     out("\n=== 逐項確認會議記錄與決議 ===")
     topics = _confirm_topics(inp, out, initial.topics)
