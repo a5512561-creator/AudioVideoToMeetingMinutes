@@ -53,16 +53,16 @@ The LLM is prompted with a strictly conservative rule: **only fix terms listed i
 
 ```powershell
 # Basic
-python -m script.main path\to\transcript.txt
+python -m script.main process path\to\transcript.txt
 
 # Specify output folder name
-python -m script.main transcript.txt --name 2026Q2_planning
+python -m script.main process transcript.txt --name 2026Q2_planning
 
 # Force re-run all stages (ignore cached intermediates)
-python -m script.main transcript.txt --force
+python -m script.main process transcript.txt --force
 
 # Re-render outputs from cached minutes.json + review.json (no LLM)
-python -m script.main transcript.txt --name 2026Q2_planning --rerender
+python -m script.main process transcript.txt --name 2026Q2_planning --rerender
 ```
 
 Outputs land in `out\<name>\`:
@@ -76,6 +76,32 @@ name appended for easy identification). The run also emits a periodic
 `progress` heartbeat during the LLM stages so a slow model doesn't look like
 a hang. See §9 of `doc/specs/2026-05-18-transcript-to-minutes-design.md` for
 the full log format, event reference, and the `PROGRESS_INTERVAL_SECS` setting.
+
+## finalize 指令（產生 Outlook 草稿）
+
+### 前置需求
+
+- Windows + 已安裝 Outlook 桌面版
+- `pip install -r requirements.txt`（包含 `pywin32`）
+
+### 用法
+
+先執行 `process` 產生會議記錄，再執行 `finalize`：
+
+```powershell
+python -m script.main process path\to\transcript.txt --name 2026Q2_planning
+python -m script.main finalize path\to\transcript.txt --name 2026Q2_planning
+```
+
+`finalize` 會逐項詢問會議資訊（主旨、主持人、出席者等）並逐條確認每項決議與 Action Item（含負責人與到期日）。未知欄位留白，不自動推論。
+
+完成後開啟一個可編輯的 Outlook 草稿供人工審閱，**不會自動寄出**。若 Outlook 無法使用（如非 Windows 環境），改輸出 `out\<name>\minutes_email.html`。
+
+`--reuse`：沿用上次 `finalize` 的答案作為預設值，加快重複執行的流程：
+
+```powershell
+python -m script.main finalize path\to\transcript.txt --name 2026Q2_planning --reuse
+```
 
 ## Tests
 

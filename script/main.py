@@ -1,5 +1,8 @@
+from pathlib import Path
+
 import typer
 from script.config import Settings
+from script.finalize import run_finalize
 from script.pipeline import run_pipeline
 
 
@@ -36,6 +39,21 @@ def process(
         force=force,
         rerender_only=rerender,
     )
+
+
+@app.command()
+def finalize(
+    src: str = typer.Argument(..., help="Transcript path or existing output folder name (used to locate out/<name>)."),
+    name: str | None = typer.Option(None, "--name", help="Output folder name (defaults to src basename)."),
+    reuse: bool = typer.Option(
+        False, "--reuse",
+        help="Reuse the previous finalized.json as Q&A defaults (skip re-asking)."),
+) -> None:
+    """Interactively confirm the minutes and open an editable Outlook draft (not sent)."""
+    settings = Settings()
+    base_name = name or Path(src).stem
+    out_dir = str(Path(settings.out_dir) / base_name)
+    run_finalize(out_dir, default_subject=Path(src).stem, reuse=reuse)
 
 
 if __name__ == "__main__":

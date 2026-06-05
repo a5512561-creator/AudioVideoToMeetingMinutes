@@ -15,3 +15,5 @@ python-dotenv>=1.0.0
 # Used by chunker.py for token-count estimation when the LLM server's
 # tokenizer is unavailable (Plan Task 9 fallback chain).
 tiktoken>=0.7.0
+# Outlook draft creation (finalize command); Windows COM via pywin32.
+pywin32>=306; sys_platform == "win32"

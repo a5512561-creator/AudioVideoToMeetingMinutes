@@ -110,7 +110,7 @@ run:
 	$(PY) scripts/_make_run.py "$(SRC)" $(NAME) $(if $(MODEL),MODEL=$(MODEL))
 
 rerender:
-	$(PY) -m script.main "(rerender)" --name $(NAME) --rerender
+	$(PY) -m script.main process "(rerender)" --name $(NAME) --rerender
 
 open:
 	@if not exist "out\$(NAME)\minutes.html" (echo ERROR: out\$(NAME)\minutes.html not found. Run the pipeline first. & exit /b 1)
