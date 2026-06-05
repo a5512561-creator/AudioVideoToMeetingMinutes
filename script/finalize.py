@@ -8,7 +8,7 @@ unavailable). Runs no LLM calls.
 from pathlib import Path
 
 from script.schemas import SynthesizedMinutes, FinalizedMinutes
-from script.email_writer import synth_to_finalized, render_email_html, write_email_html
+from script.email_writer import synth_to_finalized, render_email_html
 from script.qna import run_qna
 from script.outlook_draft import open_draft
 from script.meeting_meta import empty_meta
@@ -37,9 +37,10 @@ def run_finalize(out_dir: str, *, default_subject: str, reuse: bool = False,
 
     finalized_path.write_text(final.model_dump_json(), encoding="utf-8")
     html_path = out_path / "minutes_email.html"
-    write_email_html(final, str(html_path))
+    html = render_email_html(final)
+    html_path.write_text(html, encoding="utf-8")
 
-    if open_draft(final.subject, render_email_html(final)):
+    if open_draft(final.subject, html):
         out(f"\n✅ 已開啟 Outlook 草稿（未寄出）。同時輸出：{html_path}")
     else:
         out(f"\n⚠️ 無法開啟 Outlook 草稿；已輸出 HTML，請手動開啟：{html_path}")

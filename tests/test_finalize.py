@@ -1,4 +1,5 @@
 import json
+import pytest
 from unittest.mock import patch
 from script.schemas import (
     SynthesizedMinutes, SynthTopic, SynthAction, MeetingMeta,
@@ -51,11 +52,18 @@ def test_finalize_writes_json_html_and_opens_draft(tmp_path):
 def test_finalize_missing_synth_raises(tmp_path):
     out_dir = tmp_path / "out" / "missing"
     out_dir.mkdir(parents=True)
-    try:
+    with pytest.raises(RuntimeError, match="process"):
         run_finalize(str(out_dir), default_subject="x")
-        assert False, "expected RuntimeError"
-    except RuntimeError as e:
-        assert "process" in str(e)
+
+
+def test_finalize_fallback_when_draft_fails(tmp_path):
+    out_dir = tmp_path / "out" / "t"
+    _write_synth(out_dir)
+    with patch("script.finalize.run_qna", return_value=_confirmed()), \
+         patch("script.finalize.open_draft", return_value=False):
+        run_finalize(str(out_dir), default_subject="t")
+    assert (out_dir / "finalized.json").exists()
+    assert (out_dir / "minutes_email.html").exists()
 
 
 def test_finalize_reuse_loads_previous_as_defaults(tmp_path):
