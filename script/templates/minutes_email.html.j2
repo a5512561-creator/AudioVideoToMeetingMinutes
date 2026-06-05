@@ -1,46 +1,39 @@
 <div style="font-family:'Microsoft JhengHei',Arial,sans-serif;font-size:14px;color:#222;line-height:1.6;">
+<p>Dear all :</p>
 <p>
 📅 會議日期：{{ m.meeting_date }}<br>
-🕒 會議時間：____ - ____　（{{ m.duration_hint }}）<br>
-📍 會議地點 / 會議室：____<br>
-👥 參與人員：____<br>
-📝 記錄人：____<br>
-會議文件：____<br>
-會議錄影：____<br>
-JIRA連結 (optional)：____
+🕒 會議時間：{{ m.meeting_time }}　（{{ m.duration_hint }}）<br>
+📍 會議地點 / 會議室：{{ m.location }}<br>
+👥 參與人員：{{ m.attendees }}<br>
+📝 記錄人：{{ m.recorder }}<br>
+會議文件：{{ m.doc_links }}<br>
+會議錄影：{{ m.video_links }}<br>
+JIRA連結 (optional)：{{ m.jira }}
 </p>
 <hr>
 <h2 style="font-size:17px;border-bottom:2px solid #444;padding-bottom:4px;">1. 會議記錄與決議</h2>
-{% for t in synth.topics %}
-<h3 style="font-size:15px;margin-bottom:4px;">{{ t.title }}</h3>
-<p style="margin:4px 0;">{{ t.summary }}</p>
-{% if t.decisions %}
-<p style="margin:4px 0;"><b>決議：</b></p>
-<ul style="margin:4px 0 12px 0;">
-{% for d in t.decisions %}<li>{{ d }}</li>{% endfor %}
-</ul>
-{% endif %}
+<table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%;font-size:13px;">
+<tr style="background:#f0f0f0;"><th>No</th><th>項目</th><th>摘要</th></tr>
+{% for t in f.topics %}
+<tr>
+<td style="text-align:center;">{{ loop.index }}</td>
+<td>{{ t.item }}</td>
+<td>{{ t.summary }}</td>
+</tr>
 {% endfor %}
+</table>
 <h2 style="font-size:17px;border-bottom:2px solid #444;padding-bottom:4px;">2. Action Items</h2>
 <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%;font-size:13px;">
-<tr style="background:#f0f0f0;">
-<th>#</th><th>任務</th><th>負責人</th><th>期限</th><th>優先級</th>
-</tr>
-{% for a in synth.action_items %}
+<tr style="background:#f0f0f0;"><th>No</th><th>行動項目</th><th>負責人</th><th>到期日</th><th>備註</th></tr>
+{% for a in f.actions %}
 <tr>
 <td style="text-align:center;">{{ loop.index }}</td>
 <td>{{ a.task }}</td>
 <td>{{ a.owner }}</td>
 <td>{{ a.due }}</td>
-<td style="text-align:center;">{{ {'high':'高','medium':'中','low':'低'}[a.priority] }}</td>
+<td>{{ a.note }}</td>
 </tr>
 {% endfor %}
 </table>
-<hr>
-<p style="font-size:12px;color:#666;"><b>來源對照</b>（逐字稿時間戳）：</p>
-<ul style="font-size:12px;color:#666;">
-{% for s in synth.source_index %}
-<li>{{ s.label }}：{{ s.timestamps | join(', ') }}</li>
-{% endfor %}
-</ul>
+<p>Best regards,<br>{{ m.recorder }}</p>
 </div>
