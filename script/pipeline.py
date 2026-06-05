@@ -15,8 +15,8 @@ from script.agents.base import probe_instructor_mode, usage_summary, estimate_co
 from script.agents.minutes_agent import MinutesAgent
 from script.agents.reviewer_agent import ReviewerAgent
 from script.agents.synthesis_agent import SynthesisAgent
-from script.email_writer import write_email_html
-from script.meeting_meta import infer_meeting_date, duration_hint
+from script.email_writer import write_email_html, synth_to_finalized
+from script.meeting_meta import infer_meeting_date, duration_hint, empty_meta
 from script.audio_assets import (
     find_sibling_audio, output_audio, clip_start, cut_clips, file_to_data_url,
 )
@@ -100,7 +100,7 @@ def run_pipeline(
     logger = setup_logger("pipeline", log_dir=settings.log_dir,
                           level=settings.log_level, run_label=base_name)
     log_kv(logger, "INFO", "pipeline.start", file=src, name=base_name,
-           rerender_only=rerender_only)
+           model=settings.openai_model, rerender_only=rerender_only)
 
     # Always load speaker_map (empty dict if missing)
     spk_map = _spk_map.load(str(out_dir / "speaker_map.json"))
@@ -133,9 +133,10 @@ def run_pipeline(
             meeting_file=src, diarization_enabled=False,
             speakers_detected=0, speaker_map=spk_map,
         )
-        write_email_html(
-            synth, str(out_dir / "minutes_email.html"), meeting_file=src
+        preview = synth_to_finalized(
+            synth, subject=base_name, meta=synth.meta or empty_meta()
         )
+        write_email_html(preview, str(out_dir / "minutes_email.html"))
         log_kv(logger, "INFO", "pipeline.done", out=str(out_dir), mode="rerender")
         return
 
@@ -265,9 +266,8 @@ def run_pipeline(
     (inter_dir / "synthesized.json").write_text(
         synth.model_dump_json(), encoding="utf-8",
     )
-    write_email_html(
-        synth, str(out_dir / "minutes_email.html"), meeting_file=src,
-    )
+    preview = synth_to_finalized(synth, subject=base_name, meta=meta)
+    write_email_html(preview, str(out_dir / "minutes_email.html"))
     synth_usage = usage_summary(getattr(client, "_usage_log", [])[usage_before_synth:])
     log_kv(logger, "INFO", "stage.synthesis",
            topics=len(synth.topics), actions=len(synth.action_items),
