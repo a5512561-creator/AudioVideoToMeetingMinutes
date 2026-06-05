@@ -39,7 +39,7 @@ def test_open_draft_sets_body_and_displays_without_sending(monkeypatch):
     app.CreateItem.assert_called_once_with(0)      # 0 = olMailItem
     assert mail.Subject == "主旨X"
     assert mail.HTMLBody == "<div>內容</div>"
-    mail.Display.assert_called_once()              # opened, not sent
+    mail.Display.assert_called_once_with(False)    # opened editable (non-modal), not sent
     mail.Send.assert_not_called()
 
 
