@@ -43,13 +43,13 @@ def process(
 
 @app.command()
 def finalize(
-    src: str = typer.Argument(..., help="逐字稿路徑或既有輸出資料夾名（用來定位 out/<name>）。"),
-    name: str | None = typer.Option(None, "--name", help="輸出資料夾名（預設取 src basename）。"),
+    src: str = typer.Argument(..., help="Transcript path or existing output folder name (used to locate out/<name>)."),
+    name: str | None = typer.Option(None, "--name", help="Output folder name (defaults to src basename)."),
     reuse: bool = typer.Option(
         False, "--reuse",
-        help="沿用上次 finalized.json 當 Q&A 預設值（避免重問）。"),
+        help="Reuse the previous finalized.json as Q&A defaults (skip re-asking)."),
 ) -> None:
-    """互動式確認會議記錄並開啟 Outlook 草稿（不寄出）。"""
+    """Interactively confirm the minutes and open an editable Outlook draft (not sent)."""
     settings = Settings()
     base_name = name or Path(src).stem
     out_dir = str(Path(settings.out_dir) / base_name)
