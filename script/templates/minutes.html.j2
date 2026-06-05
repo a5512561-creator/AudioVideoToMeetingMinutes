@@ -59,6 +59,7 @@
       <span>📁 {{ meeting_file }}</span>
       <span>📅 {{ meta.meeting_date }}</span>
       <span>⏱ {{ meta.duration_hint }}</span>
+      {% if meta.llm_model %}<span>🤖 LLM 整理：{{ meta.llm_model }}</span>{% endif %}
       <span>📊 {{ n_topics }} 議題 / {{ n_decisions }} 決議 / {{ n_actions }} Action</span>
       <span>⚠️ {{ n_warns }} warn / ❌ {{ n_errors }} error</span>
     </div>

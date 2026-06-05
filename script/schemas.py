@@ -108,6 +108,7 @@ class MeetingMeta(BaseModel):
     doc_links: str = ""
     video_links: str = ""
     jira: str = ""
+    llm_model: str = ""
 
 
 class SynthesizedMinutes(BaseModel):

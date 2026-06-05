@@ -253,6 +253,7 @@ def run_pipeline(
     meta = MeetingMeta(
         meeting_date=infer_meeting_date(name, src),
         duration_hint=duration_hint(transcript_text),
+        llm_model=settings.openai_model,
     )
     synth_agent = SynthesisAgent(
         prompts_dir="script/prompts", client=client,

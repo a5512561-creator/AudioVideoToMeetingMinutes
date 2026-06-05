@@ -30,6 +30,7 @@ def test_meta_questions_fill_and_keep_default():
         "spec.docx",             # doc_links
         "rec.mp4",               # video_links
         "",                      # jira: blank (not inferred)
+        "gpt-latest",            # llm_model
         "",                      # topic A keep
         "",                      # topic B keep
         "n",                     # add topic? no
@@ -43,6 +44,7 @@ def test_meta_questions_fill_and_keep_default():
     assert f.meta.location == "R531"
     assert f.meta.recorder == "林冠名"
     assert f.meta.jira == ""
+    assert f.meta.llm_model == "gpt-latest"
     assert len(f.topics) == 2
     assert f.actions[0].owner == "Alice" and f.actions[0].due == "6/E"
 
@@ -51,7 +53,7 @@ def test_topic_edit_and_delete_and_add():
     inp = _feeder([
         "x",                          # subject -> "x"
         "", "", "", "", "", "", "",   # 7 meta after date: keep (date,time,loc,att,rec,doc,vid)
-        "",                            # jira keep  (8 meta total)
+        "", "",                        # jira keep, llm_model keep  (9 meta total)
         "e", "主題A改", "摘要A改",     # topic A: edit
         "d",                           # topic B: delete
         "y", "新主題", "新摘要", "n",  # add one topic then stop
@@ -70,7 +72,7 @@ def test_topic_edit_and_delete_and_add():
 def test_action_keep_still_confirms_owner_due():
     inp = _feeder([
         "",                                  # subject keep
-        "", "", "", "", "", "", "", "",      # 8 meta keep
+        "", "", "", "", "", "", "", "", "",  # 9 meta keep (… jira, llm_model)
         "", "",                              # topic A keep, topic B keep
         "n",                                 # add topic? no
         "",                                  # action: keep task

@@ -227,6 +227,7 @@ def test_pipeline_runs_synthesis_stage_and_keeps_existing_outputs(
     assert isinstance(sm_arg, MeetingMinutes)
     assert meta_arg.meeting_date == "2026/05/18"
     assert "逐字稿長度約 1h" in meta_arg.duration_hint
+    assert meta_arg.llm_model == settings.openai_model  # captured for the record
     write_email.assert_called_once()
     write_x.assert_called_once()
     write_r.assert_called_once()

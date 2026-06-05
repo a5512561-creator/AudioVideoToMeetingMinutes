@@ -70,6 +70,10 @@ def run_qna(initial: FinalizedMinutes, *, inp=input, out=print) -> FinalizedMinu
         doc_links=_ask(inp, "會議文件", m.doc_links),
         video_links=_ask(inp, "會議錄影", m.video_links),
         jira=_ask(inp, "JIRA連結 (optional)", m.jira),
+        # Editable on purpose: process auto-fills this, but older
+        # synthesized.json predates the field — letting the user type it (or
+        # correct the displayed name) is why it's a prompt, not read-only.
+        llm_model=_ask(inp, "整理工具 (LLM)", m.llm_model),
     )
     out("\n=== 逐項確認會議記錄與決議 ===")
     topics = _confirm_topics(inp, out, initial.topics)
