@@ -101,6 +101,13 @@ class SourceRef(BaseModel):
 class MeetingMeta(BaseModel):
     meeting_date: str
     duration_hint: str
+    meeting_time: str = ""
+    location: str = ""
+    attendees: str = ""
+    recorder: str = ""
+    doc_links: str = ""
+    video_links: str = ""
+    jira: str = ""
 
 
 class SynthesizedMinutes(BaseModel):
@@ -108,3 +115,22 @@ class SynthesizedMinutes(BaseModel):
     topics: list[SynthTopic] = []
     action_items: list[SynthAction] = []
     source_index: list[SourceRef] = []
+
+
+class FinalTopic(BaseModel):
+    item: str
+    summary: str
+
+
+class FinalAction(BaseModel):
+    task: str
+    owner: str
+    due: str
+    note: str = ""
+
+
+class FinalizedMinutes(BaseModel):
+    meta: MeetingMeta
+    subject: str
+    topics: list[FinalTopic] = []
+    actions: list[FinalAction] = []

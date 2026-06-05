@@ -180,3 +180,30 @@ def test_synthesized_minutes_meta_optional_and_nested():
     sm.meta = MeetingMeta(meeting_date="2026/05/18", duration_hint="逐字稿長度約 1h 55m")
     assert sm.meta.meeting_date == "2026/05/18"
     assert sm.topics[0].decisions == ["d"]
+
+
+def test_meeting_meta_new_fields_default_empty():
+    from script.schemas import MeetingMeta
+    m = MeetingMeta(meeting_date="2026/06/04", duration_hint="約 2h")
+    assert m.meeting_time == ""
+    assert m.location == ""
+    assert m.attendees == ""
+    assert m.recorder == ""
+    assert m.doc_links == ""
+    assert m.video_links == ""
+    assert m.jira == ""
+
+
+def test_finalized_minutes_model():
+    from script.schemas import (
+        FinalizedMinutes, FinalTopic, FinalAction, MeetingMeta,
+    )
+    f = FinalizedMinutes(
+        meta=MeetingMeta(meeting_date="2026/06/04", duration_hint="約 2h"),
+        subject="會議記錄",
+        topics=[FinalTopic(item="主題A", summary="摘要A（決議：X）")],
+        actions=[FinalAction(task="做X", owner="Alice", due="6/E", note="")],
+    )
+    assert f.topics[0].item == "主題A"
+    assert f.actions[0].note == ""
+    assert FinalizedMinutes.model_validate_json(f.model_dump_json()) == f
