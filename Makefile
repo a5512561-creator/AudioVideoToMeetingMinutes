@@ -13,7 +13,7 @@
 # box; install via `winget install ezwinports.make` if a teammate hasn't.
 
 .DEFAULT_GOAL := help
-.PHONY: help install install-dev test test-verbose run rerender open \
+.PHONY: help install install-dev test test-verbose run rerender open finalize \
         clean clean-out clean-logs clean-all
 
 # Force every recipe line through cmd.exe — otherwise GNU Make's fast-path
@@ -52,6 +52,11 @@ ifndef NAME
 $(error NAME is required. Usage: make open NAME=foo)
 endif
 endif
+ifeq (finalize,$(filter finalize,$(MAKECMDGOALS)))
+ifndef NAME
+$(error NAME is required. Usage: make finalize NAME=foo [REUSE=1])
+endif
+endif
 
 # ── Help ─────────────────────────────────────────────────────────────────
 help:
@@ -71,6 +76,9 @@ help:
 	@echo                           SRC basename.
 	@echo   make rerender NAME=foo  Re-render outputs (no LLM calls)
 	@echo   make open NAME=foo      Open out\^<NAME^>\minutes.html in browser
+	@echo   make finalize NAME=foo [REUSE=1]
+	@echo                           Interactive Q^&A -^> Outlook draft (no LLM).
+	@echo                           Confirms meeting info + each decision/action.
 	@echo.
 	@echo Clean (DESTRUCTIVE):
 	@echo   make clean              pycache + .pytest_cache + .mypy_cache + .ruff_cache
@@ -115,6 +123,15 @@ rerender:
 open:
 	@if not exist "out\$(NAME)\minutes.html" (echo ERROR: out\$(NAME)\minutes.html not found. Run the pipeline first. & exit /b 1)
 	@start "" "out\$(NAME)\minutes.html"
+
+# finalize is INTERACTIVE (terminal Q&A). It reads out\<NAME>\intermediate\
+# synthesized.json from a prior `make run`, so it needs only NAME (ASCII) —
+# the CJK transcript path is never passed, sidestepping make.exe's mangling.
+# Subject defaults to NAME (override it in the Q&A). REUSE=1 reuses the
+# previous finalized.json answers as defaults.
+finalize:
+	@if not exist "out\$(NAME)\intermediate\synthesized.json" (echo ERROR: out\$(NAME)\intermediate\synthesized.json not found. Run `make run` first. & exit /b 1)
+	$(PY) -m script.main finalize "$(NAME)" --name "$(NAME)" $(if $(REUSE),--reuse)
 
 # ── Clean ────────────────────────────────────────────────────────────────
 clean:
