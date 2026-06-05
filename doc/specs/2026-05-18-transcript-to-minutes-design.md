@@ -210,7 +210,7 @@ pipeline 每跑一次同時把結構化日誌輸出到**主控台**與**檔案**
 
 | event | 重要欄位 |
 |---|---|
-| `pipeline.start` | `file= name= rerender_only=` |
+| `pipeline.start` | `file= name= model= rerender_only=`（`model=` 為本次實際使用的 LLM，含 `--model` override；`.env` 預設 `medium`＝on-prem）|
 | `stage.load_transcript` | `format=android\|vtt`（驗證 auto-detect）|
 | `stage.chunk` | `chunks=` |
 | `instructor.mode` | `TOOLS` / `JSON` |
