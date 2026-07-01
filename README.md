@@ -77,6 +77,22 @@ name appended for easy identification). The run also emits a periodic
 a hang. See §9 of `doc/specs/2026-05-18-transcript-to-minutes-design.md` for
 the full log format, event reference, and the `PROGRESS_INTERVAL_SECS` setting.
 
+When run in an interactive terminal, the heartbeat also paints a **live
+single-line progress bar** that refreshes in place every second, with a
+spinner so you can tell the run is alive even while a single (slow) LLM call
+is in flight and the % hasn't moved:
+
+```
+minutes:map    ▓▓▓░░░░░░░  36%  (4/~11)  6m02s ⠙
+```
+
+The bar auto-activates only on a TTY, so redirected output and log files stay
+clean (they keep just the periodic `progress` line). On a legacy console whose
+encoding can't render the block/braille glyphs (e.g. Windows cp950) it falls
+back to an ASCII bar (`###-------` with a `|/-\` spinner); set the console to
+UTF-8 (`chcp 65001` or `PYTHONUTF8=1`) for the block glyphs. Setting
+`PROGRESS_INTERVAL_SECS=0` disables the heartbeat and the bar together.
+
 ## finalize 指令（產生 Outlook 草稿）
 
 ### 前置需求
