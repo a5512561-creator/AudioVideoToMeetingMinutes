@@ -176,6 +176,41 @@ def test_strip_thinking_tokens_unfences_tool_call_arguments():
     assert tc.function.arguments == '{"topics": ["t1"]}'
 
 
+def test_repair_json_fixes_duplicated_topics_key():
+    """The on-prem `expert` model glues a spurious partial key-string
+    containing a `{` between the opening brace and the real first key, e.g.
+    `{\\n  "topics{\\n  "topics": [...]`. The stray newline inside that broken
+    string is what Pydantic rejects. _repair_json must recover the intended
+    object with a clean `topics` key."""
+    from script.agents.base import _repair_json
+    bad = ('{\n  "topics{\n  "topics": [\n    "CPU arch"\n  ],\n'
+           '  "conclusions": [],\n  "actions": [],\n  "key_points": []\n}')
+    obj = json.loads(_repair_json(bad))
+    assert list(obj.keys()) == ["topics", "conclusions", "actions", "key_points"]
+    assert obj["topics"] == ["CPU arch"]
+
+
+def test_repair_json_fixes_stray_open_brace_variant():
+    """Second observed variant: `{\\n  "{\\n  "topics": [...]`."""
+    from script.agents.base import _repair_json
+    bad = ('{\n  "{\n  "topics": [\n    "x"\n  ],\n'
+           '  "conclusions": [],\n  "actions": [],\n  "key_points": []\n}')
+    obj = json.loads(_repair_json(bad))
+    assert list(obj.keys()) == ["topics", "conclusions", "actions", "key_points"]
+
+
+def test_repair_json_leaves_valid_json_semantically_unchanged():
+    from script.agents.base import _repair_json
+    good = '{"topics": ["x"], "conclusions": [], "actions": [], "key_points": []}'
+    assert json.loads(_repair_json(good)) == json.loads(good)
+
+
+def test_repair_json_handles_none_and_empty():
+    from script.agents.base import _repair_json
+    assert _repair_json(None) is None
+    assert _repair_json("") == ""
+
+
 def test_strip_thinking_tokens_records_usage():
     """Token usage on each completion appended to client._usage_log."""
     from script.agents.base import _strip_thinking_tokens

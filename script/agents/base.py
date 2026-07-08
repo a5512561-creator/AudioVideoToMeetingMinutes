@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import instructor
 from jinja2 import Environment, FileSystemLoader
+from json_repair import repair_json
 from pydantic import BaseModel
 
 
@@ -33,6 +34,33 @@ def _unfence(s: str | None) -> str | None:
         return s
     m = _FENCE_RE.search(s)
     return m.group(1) if m else s
+
+
+# Signature of the on-prem `expert` model's opening-brace corruption: after
+# the opening `{` it emits a spurious partial key-string that CONTAINS a `{`
+# and is never closed, glued right before the real first key — e.g.
+# `{\n  "topics{\n  "topics": [...]` or `{\n  "{\n  "topics": [...]`. The
+# stray newline inside that broken string is what Pydantic rejects as an
+# unescaped control character. A valid first key never contains a `{` before
+# its closing quote, so collapsing that fragment back to a bare `{` is safe.
+_BRACE_CORRUPTION_RE = re.compile(r'^\s*\{\s*"[^"]*\{[^"]*(?=")', re.DOTALL)
+
+
+def _repair_json(s: str | None) -> str | None:
+    """Best-effort repair of malformed JSON the on-prem model emits.
+
+    Two passes: (1) strip the known opening-brace corruption above, then
+    (2) run json_repair to normalise any residual issues (raw control chars,
+    trailing commas, unterminated structures). Both passes are no-ops on
+    already-valid JSON, so clean payloads pass through unchanged. Returns the
+    input untouched if repair itself raises."""
+    if not s:
+        return s
+    fixed = _BRACE_CORRUPTION_RE.sub("{", s, count=1)
+    try:
+        return repair_json(fixed, ensure_ascii=False)
+    except Exception:
+        return fixed
 
 
 def _strip_thinking_tokens(client):
@@ -82,11 +110,11 @@ def _strip_thinking_tokens(client):
             if msg is None:
                 continue
             if getattr(msg, "content", None):
-                msg.content = _unfence(_THINK_RE.sub("", msg.content))
+                msg.content = _repair_json(_unfence(_THINK_RE.sub("", msg.content)))
             for tc in (getattr(msg, "tool_calls", None) or []):
                 fn = getattr(tc, "function", None)
                 if fn and getattr(fn, "arguments", None):
-                    fn.arguments = _unfence(_THINK_RE.sub("", fn.arguments))
+                    fn.arguments = _repair_json(_unfence(_THINK_RE.sub("", fn.arguments)))
         return resp
 
     client.chat.completions.create = _create
@@ -127,10 +155,16 @@ class LLMAgent:
         client,
         model: str,
         instructor_mode: str,
+        temperature: float = 0.2,
     ) -> None:
         self.name = name
         self.prompts_dir = Path(prompts_dir)
         self.model = model
+        # Forwarded to every completion. Must be > 0: the on-prem `expert`
+        # model runs greedy at temperature 0, so a malformed-JSON generation
+        # is reproduced byte-for-byte on every Instructor retry (deterministic
+        # dead-end). A non-zero temperature lets retries diverge and recover.
+        self.temperature = temperature
         client = _strip_thinking_tokens(client)
         self.llm = instructor.from_openai(
             client, mode=getattr(instructor.Mode, instructor_mode)
@@ -170,6 +204,7 @@ class LLMAgent:
             model=self.model,
             response_model=response_model,
             max_retries=max_retries,
+            temperature=self.temperature,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},

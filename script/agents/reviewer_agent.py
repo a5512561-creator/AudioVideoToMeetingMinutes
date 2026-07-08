@@ -4,13 +4,15 @@ from script.schemas import MeetingMinutes, ReviewResult
 
 
 class ReviewerAgent(LLMAgent):
-    def __init__(self, *, prompts_dir: str, client, model: str, instructor_mode: str):
+    def __init__(self, *, prompts_dir: str, client, model: str, instructor_mode: str,
+                 temperature: float = 0.2):
         super().__init__(
             name="reviewer",
             prompts_dir=prompts_dir,
             client=client,
             model=model,
             instructor_mode=instructor_mode,
+            temperature=temperature,
         )
 
     def review(self, minutes: MeetingMinutes) -> ReviewResult:

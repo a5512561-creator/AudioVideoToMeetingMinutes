@@ -162,6 +162,7 @@ def run_pipeline(
         corrector = CorrectorAgent(
             prompts_dir="script/prompts", client=client_for_corrector,
             model=settings.openai_model, instructor_mode=mode_pre,
+            temperature=settings.llm_temperature,
         )
         correct_transcript(
             transcript_path=str(transcript_path),
@@ -207,6 +208,7 @@ def run_pipeline(
     minutes_agent = MinutesAgent(
         prompts_dir="script/prompts", client=client,
         model=settings.openai_model, instructor_mode=mode,
+        temperature=settings.llm_temperature,
     )
     heartbeat.set_stage("minutes:map")
     usage_before_minutes = len(getattr(client, "_usage_log", []))
@@ -233,6 +235,7 @@ def run_pipeline(
     reviewer = ReviewerAgent(
         prompts_dir="script/prompts", client=client,
         model=settings.openai_model, instructor_mode=mode,
+        temperature=settings.llm_temperature,
     )
     heartbeat.set_stage("review")
     usage_before_review = len(getattr(client, "_usage_log", []))
@@ -258,6 +261,7 @@ def run_pipeline(
     synth_agent = SynthesisAgent(
         prompts_dir="script/prompts", client=client,
         model=settings.openai_model, instructor_mode=mode,
+        temperature=settings.llm_temperature,
     )
     heartbeat.set_stage("synthesis")
     usage_before_synth = len(getattr(client, "_usage_log", []))
