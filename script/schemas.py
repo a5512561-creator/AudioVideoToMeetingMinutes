@@ -121,6 +121,10 @@ class SynthesizedMinutes(BaseModel):
 class FinalTopic(BaseModel):
     item: str
     summary: str
+    # Decisions are carried alongside the summary (not folded into it) so the
+    # renderers can show them as a distinct, highlighted 決議 block. Defaults
+    # to [] so older finalized.json (pre-split) still loads.
+    decisions: list[str] = []
 
 
 class FinalAction(BaseModel):

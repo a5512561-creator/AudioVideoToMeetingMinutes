@@ -22,9 +22,12 @@
     .topic{background:#fff;border-radius:8px;border:1px solid #e2e8f0;padding:16px;margin-bottom:12px}
     .topic[hidden]{display:none!important}
     .topic h3{font-size:1.05rem;color:#2d3748;margin-bottom:6px}
-    .topic .summary{line-height:1.6;margin-bottom:8px}
+    .topic .summary{line-height:1.6;margin:0 0 8px 22px;padding:0}
+    .topic .summary li{margin:3px 0}
     .topic ul{margin:6px 0 6px 22px}
     .topic li{margin:3px 0}
+    .topic .decisions{color:#0563c1;margin-top:6px}
+    .topic .decisions ul{margin:4px 0 0 22px}
     table{width:100%;border-collapse:collapse;background:#fff;font-size:.9rem}
     th,td{border:1px solid #e2e8f0;padding:8px 10px;text-align:left;vertical-align:top}
     th{background:#edf2f7}
@@ -81,10 +84,10 @@
       {% for t in topics %}
       <article class="topic searchable">
         <h3>{{ t.title }}</h3>
-        <p class="summary">{{ t.summary }}</p>
+        <ol class="summary">{% for s in t.summary|sentences %}<li>{{ s }}</li>{% endfor %}</ol>
         {% if t.decisions %}
-        <b>決議：</b>
-        <ul>{% for d in t.decisions %}<li>{{ d }}{% if t.clip %} <button type="button" class="play" data-clip="{{ t.clip }}">▶ 聽</button>{% endif %}</li>{% endfor %}</ul>
+        <div class="decisions"><b>■ 決議</b>
+        <ul>{% for d in t.decisions %}<li>{{ d }}{% if t.clip %} <button type="button" class="play" data-clip="{{ t.clip }}">▶ 聽</button>{% endif %}</li>{% endfor %}</ul></div>
         {% endif %}
       </article>
       {% endfor %}

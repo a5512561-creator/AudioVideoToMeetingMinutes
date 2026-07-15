@@ -37,7 +37,9 @@ def test_finalize_writes_json_html_and_opens_draft(tmp_path):
         run_finalize(str(out_dir), default_subject="t")
     initial = qna.call_args.args[0]
     assert isinstance(initial, FinalizedMinutes)
-    assert "決議" in initial.topics[0].summary
+    # decisions are carried as their own field now, not folded into the summary
+    assert initial.topics[0].decisions == ["決議A"]
+    assert "決議" not in initial.topics[0].summary
     assert initial.subject == "t"
     assert (out_dir / "finalized.json").exists()
     assert (out_dir / "minutes_email.html").exists()
