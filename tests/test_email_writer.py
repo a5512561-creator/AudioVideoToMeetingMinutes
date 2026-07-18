@@ -36,14 +36,32 @@ def _final():
     )
 
 
-def test_synth_to_finalized_folds_decisions_into_summary():
+def test_synth_to_finalized_keeps_decisions_separate():
     f = synth_to_finalized(_synth(), subject="會議記錄", meta=_synth().meta)
     assert f.subject == "會議記錄"
     assert f.topics[0].item == "FCS 移除彈性討論"
-    assert "決議" in f.topics[0].summary
-    assert "尚無定論" in f.topics[0].summary
+    # decisions are carried as their own field, NOT folded into the summary
+    assert f.topics[0].decisions == ["此項尚無定論，後續確認"]
+    assert "決議" not in f.topics[0].summary
+    assert f.topics[0].summary == "討論是否提供 FCS 移除彈性。"
     assert f.actions[0].owner == "林冠名" and f.actions[0].due == "6/E"
     assert f.actions[0].note == ""
+
+
+def test_email_html_renders_summary_as_numbered_list_and_blue_decisions(tmp_path):
+    """Summary becomes an <ol> of sentences; decisions render as a distinct
+    blue (#0563C1) 決議 block rather than parenthetical text in the summary."""
+    synth = _synth()
+    synth.topics[0].summary = "第一點。第二點。"
+    f = synth_to_finalized(synth, subject="會議記錄", meta=synth.meta)
+    dst = tmp_path / "e.html"
+    write_email_html(f, str(dst))
+    html = dst.read_text(encoding="utf-8")
+    assert "<ol" in html
+    assert "<li" in html and "第一點。" in html and "第二點。" in html
+    assert "決議" in html
+    assert "#0563C1" in html or "#0563c1" in html
+    assert "此項尚無定論，後續確認" in html
 
 
 def test_email_html_company_format(tmp_path):

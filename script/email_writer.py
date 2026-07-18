@@ -13,6 +13,7 @@ from script.schemas import (
     SynthesizedMinutes, MeetingMeta,
     FinalizedMinutes, FinalTopic, FinalAction,
 )
+from script.text_format import to_sentences
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 
@@ -22,15 +23,14 @@ def synth_to_finalized(
 ) -> FinalizedMinutes:
     """Build an initial FinalizedMinutes from raw synthesis output.
 
-    Decisions are folded into the topic summary (company format has no
-    separate decision column). Action priority is dropped; note starts empty.
+    Decisions are carried through as a separate field (the renderers show them
+    as a distinct highlighted 決議 block, not folded into the summary text).
+    Action priority is dropped; note starts empty.
     """
-    topics = []
-    for t in synth.topics:
-        summary = t.summary
-        if t.decisions:
-            summary = f"{summary}（決議：{'；'.join(t.decisions)}）"
-        topics.append(FinalTopic(item=t.title, summary=summary))
+    topics = [
+        FinalTopic(item=t.title, summary=t.summary, decisions=list(t.decisions))
+        for t in synth.topics
+    ]
     actions = [
         FinalAction(task=a.task, owner=a.owner, due=a.due, note="")
         for a in synth.action_items
@@ -45,6 +45,7 @@ def render_email_html(final: FinalizedMinutes) -> str:
         autoescape=True,
         keep_trailing_newline=False,
     )
+    env.filters["sentences"] = to_sentences
     return env.get_template("minutes_email.html.j2").render(f=final, m=final.meta)
 
 

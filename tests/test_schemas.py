@@ -208,3 +208,33 @@ def test_finalized_minutes_model():
     assert f.topics[0].item == "主題A"
     assert f.actions[0].note == ""
     assert FinalizedMinutes.model_validate_json(f.model_dump_json()) == f
+
+
+def test_audit_result_defaults_and_roundtrip():
+    from script.schemas import (
+        AuditCheckMechanical, AuditCheckSemantic, AuditResult,
+    )
+    r = AuditResult(
+        mechanical=[AuditCheckMechanical(
+            key="action_owner_present", label="每個 Action 有負責人",
+            passed=False, offending=["A3"])],
+        semantic=[AuditCheckSemantic(
+            key="fluency", label="語句通順", score=4, rationale="大致通順")],
+    )
+    # defaults
+    assert r.overall_pass is False
+    assert r.reviewed is False
+    # offending default is []
+    assert AuditCheckMechanical(key="k", label="l", passed=True).offending == []
+    # JSON round-trips (used to write/read intermediate/audit.json)
+    back = AuditResult.model_validate_json(r.model_dump_json())
+    assert back.mechanical[0].offending == ["A3"]
+    assert back.semantic[0].score == 4
+
+
+def test_semantic_audit_is_llm_response_model():
+    from script.schemas import SemanticAudit, AuditCheckSemantic
+    s = SemanticAudit(checks=[AuditCheckSemantic(
+        key="traceable", label="可追溯", score=5, rationale="每條決議都有依據")])
+    assert s.checks[0].key == "traceable"
+    assert SemanticAudit().checks == []  # empty default

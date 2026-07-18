@@ -23,6 +23,7 @@ from jinja2 import Environment, FileSystemLoader
 from script.schemas import SynthesizedMinutes, ReviewResult, MeetingMeta
 from script.meeting_meta import empty_meta
 from script.audio_assets import clip_start
+from script.text_format import to_sentences
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 _SECTION_LABEL = {"conclusion": "結論", "key_point": "重點", "action": "Action"}
@@ -111,6 +112,7 @@ def write_minutes_html(
         loader=FileSystemLoader(str(_TEMPLATE_DIR)),
         autoescape=True,
     )
+    env.filters["sentences"] = to_sentences
     html = env.get_template("minutes.html.j2").render(
         meeting_file=Path(meeting_file).name or meeting_file,
         meta=m,

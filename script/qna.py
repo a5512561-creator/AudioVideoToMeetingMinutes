@@ -19,13 +19,17 @@ def _confirm_topics(inp, out, topics):
     kept = []
     for i, t in enumerate(topics, 1):
         out(f"\n[決議 {i}] 項目：{t.item}\n          摘要：{t.summary}")
+        if t.decisions:
+            out("          決議：" + "；".join(t.decisions))
         choice = inp("  [Enter=保留 / e=改寫 / d=刪除]: ").strip().lower()
         if choice == "d":
             continue
         if choice == "e":
             item = _ask(inp, "  新項目", t.item)
             summary = _ask(inp, "  新摘要", t.summary)
-            kept.append(FinalTopic(item=item, summary=summary))
+            # decisions carry through unchanged (edited separately if needed)
+            kept.append(FinalTopic(item=item, summary=summary,
+                                   decisions=t.decisions))
         else:
             kept.append(t)
     while inp("\n新增決議項目? (y/N): ").strip().lower() == "y":

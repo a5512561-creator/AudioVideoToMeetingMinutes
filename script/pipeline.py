@@ -15,6 +15,9 @@ from script.agents.base import probe_instructor_mode, usage_summary, estimate_co
 from script.agents.minutes_agent import MinutesAgent
 from script.agents.reviewer_agent import ReviewerAgent
 from script.agents.synthesis_agent import SynthesisAgent
+from script.agents.audit_agent import AuditAgent
+from script import audit_mechanical
+from script.schemas import AuditResult
 from script.email_writer import write_email_html, synth_to_finalized
 from script.meeting_meta import infer_meeting_date, duration_hint, empty_meta
 from script.audio_assets import (
@@ -119,6 +122,30 @@ def run_pipeline(
         review = ReviewResult.model_validate_json(review_path.read_text(encoding="utf-8"))
         synth = SynthesizedMinutes.model_validate_json(synth_path.read_text(encoding="utf-8"))
 
+        # Rebuild audit deterministically (LLM-free on rerender). Mechanical
+        # checks reflect any hand-edits to the cached synthesized.json; semantic
+        # scores are preserved from a prior audit.json when present (older runs
+        # may not have one -> semantic stays empty).
+        audit_path = inter_dir / "audit.json"
+        cached_semantic = []
+        cached_reviewed = False
+        if audit_path.exists():
+            prior = AuditResult.model_validate_json(
+                audit_path.read_text(encoding="utf-8"))
+            cached_semantic = prior.semantic
+            cached_reviewed = prior.reviewed
+        mech = audit_mechanical.evaluate(synth)
+        audit_result = AuditResult(
+            mechanical=mech,
+            semantic=cached_semantic,
+            overall_pass=audit_mechanical.overall_pass(mech),
+            reviewed=cached_reviewed,
+        )
+        audit_path.write_text(audit_result.model_dump_json(), encoding="utf-8")
+        log_kv(logger, "INFO", "stage.audit",
+               mechanical_pass=audit_result.overall_pass,
+               semantic_items=len(cached_semantic), mode="rerender")
+
         clips = _cut_audio_clips(out_dir, synth, settings)
         log_kv(logger, "INFO", "stage.audio_clips", count=len(clips), mode="rerender")
 
@@ -162,6 +189,7 @@ def run_pipeline(
         corrector = CorrectorAgent(
             prompts_dir="script/prompts", client=client_for_corrector,
             model=settings.openai_model, instructor_mode=mode_pre,
+            temperature=settings.llm_temperature,
         )
         correct_transcript(
             transcript_path=str(transcript_path),
@@ -193,13 +221,13 @@ def run_pipeline(
     log_kv(logger, "INFO", "instructor.mode", mode=mode)
 
     # Progress heartbeat: estimate total LLM calls = map (1/chunk) + reduce
-    # (~N-1 in the tree, ≥1) + review (1) + synthesis (1). Slight over-count
-    # keeps the % from sticking at 100% before pipeline.done.
+    # (~N-1 in the tree, ≥1) + review (1) + synthesis (1) + audit (1). Slight
+    # over-count keeps the % from sticking at 100% before pipeline.done.
     _n = len(chunks)
     heartbeat = Heartbeat(
         logger,
         calls_done_fn=lambda: len(getattr(client, "_usage_log", [])),
-        total_estimate=_n + max(1, _n - 1) + 2,
+        total_estimate=_n + max(1, _n - 1) + 3,
         interval=settings.progress_interval_secs,
     )
     heartbeat.start()
@@ -207,6 +235,7 @@ def run_pipeline(
     minutes_agent = MinutesAgent(
         prompts_dir="script/prompts", client=client,
         model=settings.openai_model, instructor_mode=mode,
+        temperature=settings.llm_temperature,
     )
     heartbeat.set_stage("minutes:map")
     usage_before_minutes = len(getattr(client, "_usage_log", []))
@@ -233,6 +262,7 @@ def run_pipeline(
     reviewer = ReviewerAgent(
         prompts_dir="script/prompts", client=client,
         model=settings.openai_model, instructor_mode=mode,
+        temperature=settings.llm_temperature,
     )
     heartbeat.set_stage("review")
     usage_before_review = len(getattr(client, "_usage_log", []))
@@ -258,6 +288,7 @@ def run_pipeline(
     synth_agent = SynthesisAgent(
         prompts_dir="script/prompts", client=client,
         model=settings.openai_model, instructor_mode=mode,
+        temperature=settings.llm_temperature,
     )
     heartbeat.set_stage("synthesis")
     usage_before_synth = len(getattr(client, "_usage_log", []))
@@ -275,6 +306,30 @@ def run_pipeline(
            calls=synth_usage["calls"],
            tokens_in=synth_usage["prompt_tokens"],
            tokens_out=synth_usage["completion_tokens"])
+
+    # Stage 5.5: forced quality audit (design §3). Mechanical checks are
+    # deterministic (Python); semantic checklist is LLM-scored. Result is
+    # consumed by the editable HTML (P3) and gates export there.
+    heartbeat.set_stage("audit")
+    audit_agent = AuditAgent(
+        prompts_dir="script/prompts", client=client,
+        model=settings.openai_model, instructor_mode=mode,
+        temperature=settings.llm_temperature,
+    )
+    mech = audit_mechanical.evaluate(synth)
+    semantic = audit_agent.audit(synth)
+    audit_result = AuditResult(
+        mechanical=mech,
+        semantic=semantic,
+        overall_pass=audit_mechanical.overall_pass(mech),
+        reviewed=False,
+    )
+    (inter_dir / "audit.json").write_text(
+        audit_result.model_dump_json(), encoding="utf-8",
+    )
+    log_kv(logger, "INFO", "stage.audit",
+           mechanical_pass=audit_result.overall_pass,
+           semantic_items=len(semantic))
     heartbeat.stop()  # LLM stages done; remaining work (audio, render) is fast
 
     # Aggregate token usage + optional cost summary
