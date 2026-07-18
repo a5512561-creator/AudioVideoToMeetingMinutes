@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from script.agents.base import LLMAgent
 from script.schemas import SynthesizedMinutes, SemanticAudit, AuditCheckSemantic
@@ -18,7 +19,7 @@ class AuditAgent(LLMAgent):
 
     def _load_checklist(self) -> str:
         """Read the shared SOTA checklist (also used by Engine B)."""
-        return (self.prompts_dir / "audit_checklist.md").read_text(encoding="utf-8")
+        return (Path(self.prompts_dir) / "audit_checklist.md").read_text(encoding="utf-8")
 
     def audit(self, synth: SynthesizedMinutes) -> list[AuditCheckSemantic]:
         # Score only the synthesized output (what the reader sees); no raw
