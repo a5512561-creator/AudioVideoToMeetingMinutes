@@ -197,13 +197,13 @@ def run_pipeline(
     log_kv(logger, "INFO", "instructor.mode", mode=mode)
 
     # Progress heartbeat: estimate total LLM calls = map (1/chunk) + reduce
-    # (~N-1 in the tree, ≥1) + review (1) + synthesis (1). Slight over-count
-    # keeps the % from sticking at 100% before pipeline.done.
+    # (~N-1 in the tree, ≥1) + review (1) + synthesis (1) + audit (1). Slight
+    # over-count keeps the % from sticking at 100% before pipeline.done.
     _n = len(chunks)
     heartbeat = Heartbeat(
         logger,
         calls_done_fn=lambda: len(getattr(client, "_usage_log", [])),
-        total_estimate=_n + max(1, _n - 1) + 2,
+        total_estimate=_n + max(1, _n - 1) + 3,
         interval=settings.progress_interval_secs,
     )
     heartbeat.start()
