@@ -15,6 +15,9 @@ from script.agents.base import probe_instructor_mode, usage_summary, estimate_co
 from script.agents.minutes_agent import MinutesAgent
 from script.agents.reviewer_agent import ReviewerAgent
 from script.agents.synthesis_agent import SynthesisAgent
+from script.agents.audit_agent import AuditAgent
+from script import audit_mechanical
+from script.schemas import AuditResult
 from script.email_writer import write_email_html, synth_to_finalized
 from script.meeting_meta import infer_meeting_date, duration_hint, empty_meta
 from script.audio_assets import (
@@ -279,6 +282,30 @@ def run_pipeline(
            calls=synth_usage["calls"],
            tokens_in=synth_usage["prompt_tokens"],
            tokens_out=synth_usage["completion_tokens"])
+
+    # Stage 5.5: forced quality audit (design §3). Mechanical checks are
+    # deterministic (Python); semantic checklist is LLM-scored. Result is
+    # consumed by the editable HTML (P3) and gates export there.
+    heartbeat.set_stage("audit")
+    audit_agent = AuditAgent(
+        prompts_dir="script/prompts", client=client,
+        model=settings.openai_model, instructor_mode=mode,
+        temperature=settings.llm_temperature,
+    )
+    mech = audit_mechanical.evaluate(synth)
+    semantic = audit_agent.audit(synth)
+    audit_result = AuditResult(
+        mechanical=mech,
+        semantic=semantic,
+        overall_pass=audit_mechanical.overall_pass(mech),
+        reviewed=False,
+    )
+    (inter_dir / "audit.json").write_text(
+        audit_result.model_dump_json(), encoding="utf-8",
+    )
+    log_kv(logger, "INFO", "stage.audit",
+           mechanical_pass=audit_result.overall_pass,
+           semantic_items=len(semantic))
     heartbeat.stop()  # LLM stages done; remaining work (audio, render) is fast
 
     # Aggregate token usage + optional cost summary

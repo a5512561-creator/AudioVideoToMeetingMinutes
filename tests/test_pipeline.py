@@ -4,7 +4,8 @@ from unittest.mock import MagicMock, patch
 from script.config import Settings
 from script.schemas import (
     Conclusion, Action, ChunkExtract, MeetingMinutes, ReviewResult, ReviewNote,
-    SynthesizedMinutes, SynthTopic,
+    SynthesizedMinutes, SynthTopic, SynthAction, AuditCheckSemantic, AuditResult,
+    SemanticAudit,
 )
 from script.pipeline import run_pipeline
 
@@ -39,10 +40,11 @@ def _src(tmp_path):
 @patch("script.pipeline.MinutesAgent")
 @patch("script.pipeline.chunk_transcript")
 @patch("script.pipeline.load_transcript")
+@patch("script.pipeline.AuditAgent")
 @patch("script.pipeline.SynthesisAgent")
 @patch("script.pipeline.write_email_html")
 def test_pipeline_runs_from_transcript(
-    write_email, SAm, load_m, chunk_m, MAm, RAm, write_r, write_x, tmp_path,
+    write_email, SAm, AAm, load_m, chunk_m, MAm, RAm, write_r, write_x, tmp_path,
 ):
     settings = _settings(tmp_path)
     out_dir = Path(settings.out_dir) / "t"
@@ -69,6 +71,7 @@ def test_pipeline_runs_from_transcript(
     SAm.return_value.synthesize.return_value = SynthesizedMinutes(
         topics=[SynthTopic(title="t", summary="s")]
     )
+    AAm.return_value.audit.return_value = []
 
     run_pipeline(_src(tmp_path), settings=settings, name="t")
 
@@ -83,10 +86,11 @@ def test_pipeline_runs_from_transcript(
 @patch("script.pipeline.MinutesAgent")
 @patch("script.pipeline.chunk_transcript")
 @patch("script.pipeline.load_transcript")
+@patch("script.pipeline.AuditAgent")
 @patch("script.pipeline.SynthesisAgent")
 @patch("script.pipeline.write_email_html")
 def test_pipeline_uses_cached_transcript(
-    write_email, SAm, load_m, chunk_m, MAm, RAm, write_r, write_x, tmp_path,
+    write_email, SAm, AAm, load_m, chunk_m, MAm, RAm, write_r, write_x, tmp_path,
 ):
     settings = _settings(tmp_path)
     out_dir = Path(settings.out_dir) / "t"
@@ -106,6 +110,7 @@ def test_pipeline_uses_cached_transcript(
     SAm.return_value.synthesize.return_value = SynthesizedMinutes(
         topics=[SynthTopic(title="t", summary="s")]
     )
+    AAm.return_value.audit.return_value = []
 
     run_pipeline(_src(tmp_path), settings=settings, name="t", force=False)
 
@@ -120,10 +125,11 @@ def test_pipeline_uses_cached_transcript(
 @patch("script.pipeline.load_transcript")
 @patch("script.pipeline.correct_transcript")
 @patch("script.pipeline.CorrectorAgent")
+@patch("script.pipeline.AuditAgent")
 @patch("script.pipeline.SynthesisAgent")
 @patch("script.pipeline.write_email_html")
 def test_pipeline_invokes_corrector_when_enabled(
-    write_email, SAm, CAm, correct_m, load_m, chunk_m, MAm, RAm, write_r, write_x, tmp_path,
+    write_email, SAm, AAm, CAm, correct_m, load_m, chunk_m, MAm, RAm, write_r, write_x, tmp_path,
 ):
     settings = _settings(tmp_path, ENABLE_PROPER_NOUN_CORRECTION="true")
 
@@ -145,6 +151,7 @@ def test_pipeline_invokes_corrector_when_enabled(
     SAm.return_value.synthesize.return_value = SynthesizedMinutes(
         topics=[SynthTopic(title="t", summary="s")]
     )
+    AAm.return_value.audit.return_value = []
 
     run_pipeline(_src(tmp_path), settings=settings, name="t")
 
@@ -187,13 +194,14 @@ def test_pipeline_rerender_only_raises_without_cache(tmp_path):
 @patch("script.pipeline.write_minutes_html")
 @patch("script.pipeline.write_review_report_md")
 @patch("script.pipeline.write_email_html")
+@patch("script.pipeline.AuditAgent")
 @patch("script.pipeline.SynthesisAgent")
 @patch("script.pipeline.ReviewerAgent")
 @patch("script.pipeline.MinutesAgent")
 @patch("script.pipeline.chunk_transcript")
 @patch("script.pipeline.load_transcript")
 def test_pipeline_runs_synthesis_stage_and_keeps_existing_outputs(
-    load_m, chunk_m, MAm, RAm, SAm, write_email, write_r, write_x, tmp_path,
+    load_m, chunk_m, MAm, RAm, SAm, AAm, write_email, write_r, write_x, tmp_path,
 ):
     settings = _settings(tmp_path)
 
@@ -219,6 +227,7 @@ def test_pipeline_runs_synthesis_stage_and_keeps_existing_outputs(
     SAm.return_value.synthesize.return_value = SynthesizedMinutes(
         topics=[SynthTopic(title="t", summary="s", decisions=["d"])],
     )
+    AAm.return_value.audit.return_value = []
 
     run_pipeline(_src(tmp_path), settings=settings, name="20260518_x")
 
@@ -252,13 +261,14 @@ def test_rerender_raises_when_synthesized_missing(tmp_path):
 @patch("script.pipeline.write_minutes_html")
 @patch("script.pipeline.write_review_report_md")
 @patch("script.pipeline.write_email_html")
+@patch("script.pipeline.AuditAgent")
 @patch("script.pipeline.SynthesisAgent")
 @patch("script.pipeline.ReviewerAgent")
 @patch("script.pipeline.MinutesAgent")
 @patch("script.pipeline.chunk_transcript")
 @patch("script.pipeline.load_transcript")
 def test_pipeline_copies_sibling_audio_and_passes_clip_kwargs(
-    load_m, chunk_m, MAm, RAm, SAm, write_email, write_r, write_x, tmp_path,
+    load_m, chunk_m, MAm, RAm, SAm, AAm, write_email, write_r, write_x, tmp_path,
 ):
     from script.schemas import SynthesizedMinutes, SynthTopic
     settings = _settings(tmp_path)
@@ -280,6 +290,7 @@ def test_pipeline_copies_sibling_audio_and_passes_clip_kwargs(
     RAm.return_value.review.return_value = ReviewResult(notes=[])
     SAm.return_value.synthesize.return_value = SynthesizedMinutes(
         topics=[SynthTopic(title="t", summary="s")])
+    AAm.return_value.audit.return_value = []
 
     with patch("script.pipeline.cut_clips", return_value={}) as cut_m:
         run_pipeline(str(src), settings=settings, name="m")
@@ -307,13 +318,14 @@ def test_pipeline_copies_sibling_audio_and_passes_clip_kwargs(
 @patch("script.pipeline.write_minutes_html")
 @patch("script.pipeline.write_review_report_md")
 @patch("script.pipeline.write_email_html")
+@patch("script.pipeline.AuditAgent")
 @patch("script.pipeline.SynthesisAgent")
 @patch("script.pipeline.ReviewerAgent")
 @patch("script.pipeline.MinutesAgent")
 @patch("script.pipeline.chunk_transcript")
 @patch("script.pipeline.load_transcript")
 def test_pipeline_no_sibling_audio_is_not_an_error(
-    load_m, chunk_m, MAm, RAm, SAm, write_email, write_r, write_x, tmp_path,
+    load_m, chunk_m, MAm, RAm, SAm, AAm, write_email, write_r, write_x, tmp_path,
 ):
     from script.schemas import SynthesizedMinutes, SynthTopic
     settings = _settings(tmp_path)
@@ -332,8 +344,55 @@ def test_pipeline_no_sibling_audio_is_not_an_error(
     RAm.return_value.review.return_value = ReviewResult(notes=[])
     SAm.return_value.synthesize.return_value = SynthesizedMinutes(
         topics=[SynthTopic(title="t", summary="s")])
+    AAm.return_value.audit.return_value = []
 
     run_pipeline(_src(tmp_path), settings=settings, name="m")
 
     assert not (Path(settings.out_dir) / "m" / "audio.m4a").exists()
     write_x.assert_called_once()
+
+
+@patch("script.pipeline.write_minutes_html")
+@patch("script.pipeline.write_review_report_md")
+@patch("script.pipeline.write_email_html")
+@patch("script.pipeline.AuditAgent")
+@patch("script.pipeline.SynthesisAgent")
+@patch("script.pipeline.ReviewerAgent")
+@patch("script.pipeline.MinutesAgent")
+@patch("script.pipeline.chunk_transcript")
+@patch("script.pipeline.load_transcript")
+def test_pipeline_writes_audit_json(
+    load_m, chunk_m, MAm, RAm, SAm, AAm, write_email, write_r, write_x, tmp_path,
+):
+    from script.schemas import (
+        SemanticAudit, AuditCheckSemantic, AuditResult,
+    )
+    settings = _settings(tmp_path)
+
+    def _fake_load(s, d):
+        Path(d).parent.mkdir(parents=True, exist_ok=True)
+        Path(d).write_text("[00:00:00] 大家好\n", encoding="utf-8")
+    load_m.side_effect = _fake_load
+    chunk_m.return_value = [MagicMock(text="x", first_timestamp="00:00:00",
+                                       last_timestamp="00:00:01", token_estimate=5)]
+    MAm.return_value.map_chunks.return_value = [
+        ChunkExtract(topics=[], conclusions=[_conc()], actions=[_act()])]
+    MAm.return_value.reduce.return_value = MeetingMinutes(
+        conclusions=[_conc()], actions=[_act()])
+    RAm.return_value.review.return_value = ReviewResult(notes=[])
+    SAm.return_value.synthesize.return_value = SynthesizedMinutes(
+        topics=[SynthTopic(title="t", summary="s", decisions=["d"])],
+        action_items=[SynthAction(task="t", owner="o", due="d", priority="high")])
+    AAm.return_value.audit.return_value = [
+        AuditCheckSemantic(key="fluency", label="語句通順", score=4, rationale="ok")]
+
+    run_pipeline(_src(tmp_path), settings=settings, name="t")
+
+    AAm.return_value.audit.assert_called_once()
+    audit_path = Path(settings.out_dir) / "t" / "intermediate" / "audit.json"
+    assert audit_path.exists()
+    result = AuditResult.model_validate_json(audit_path.read_text(encoding="utf-8"))
+    assert result.overall_pass is True
+    assert {c.key for c in result.mechanical} >= {"action_owner_present"}
+    assert result.semantic[0].key == "fluency"
+    assert result.reviewed is False
