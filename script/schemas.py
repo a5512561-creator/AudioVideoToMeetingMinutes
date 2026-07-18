@@ -139,3 +139,42 @@ class FinalizedMinutes(BaseModel):
     subject: str
     topics: list[FinalTopic] = []
     actions: list[FinalAction] = []
+
+
+class AuditCheckMechanical(BaseModel):
+    """One deterministic Layer-1 structural check over SynthesizedMinutes.
+
+    `offending` holds the ids of items that failed the check (e.g. ["A3"]
+    for action #3, ["T2.d1"] for topic #2's first decision) so the UI can
+    highlight exactly which rows to fix.
+    """
+    key: str
+    label: str
+    passed: bool
+    offending: list[str] = []
+
+
+class AuditCheckSemantic(BaseModel):
+    """One Layer-2 semantic checklist item, LLM-scored 1-5 with rationale."""
+    key: str
+    label: str
+    score: int
+    rationale: str
+
+
+class SemanticAudit(BaseModel):
+    """LLM response model for AuditAgent — the semantic checklist scores."""
+    checks: list[AuditCheckSemantic] = []
+
+
+class AuditResult(BaseModel):
+    """Combined audit written to intermediate/audit.json.
+
+    `overall_pass` = all mechanical checks passed (Layer 1). Semantic scores
+    never hard-block; the editable page requires a separate "已審閱" ack.
+    `reviewed` starts False; the front-end sets it when the user acknowledges.
+    """
+    mechanical: list[AuditCheckMechanical] = []
+    semantic: list[AuditCheckSemantic] = []
+    overall_pass: bool = False
+    reviewed: bool = False
