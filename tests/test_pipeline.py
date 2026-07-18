@@ -396,3 +396,76 @@ def test_pipeline_writes_audit_json(
     assert {c.key for c in result.mechanical} >= {"action_owner_present"}
     assert result.semantic[0].key == "fluency"
     assert result.reviewed is False
+
+
+@patch("script.pipeline.write_minutes_html")
+@patch("script.pipeline.write_review_report_md")
+@patch("script.pipeline.write_email_html")
+def test_rerender_recomputes_mechanical_and_keeps_cached_semantic(
+    write_email, write_r, write_x, tmp_path,
+):
+    from script.schemas import (
+        SynthesizedMinutes, SynthTopic, SynthAction,
+        AuditResult, AuditCheckSemantic,
+    )
+    settings = _settings(tmp_path)
+    inter = Path(settings.out_dir) / "t" / "intermediate"
+    inter.mkdir(parents=True)
+    (inter / "minutes.json").write_text(
+        MeetingMinutes(conclusions=[_conc()], actions=[_act()]).model_dump_json(),
+        encoding="utf-8")
+    (inter / "review.json").write_text(
+        ReviewResult(notes=[]).model_dump_json(), encoding="utf-8")
+    # cached synth has a BLANK owner -> mechanical must now fail on rerender
+    (inter / "synthesized.json").write_text(
+        SynthesizedMinutes(
+            topics=[SynthTopic(title="t", summary="s", decisions=["d"])],
+            action_items=[SynthAction(task="t", owner="", due="d", priority="high")],
+        ).model_dump_json(), encoding="utf-8")
+    # cached audit has semantic scores that must be preserved
+    (inter / "audit.json").write_text(
+        AuditResult(
+            semantic=[AuditCheckSemantic(key="fluency", label="語句通順",
+                                         score=5, rationale="cached")],
+            overall_pass=True, reviewed=True,
+        ).model_dump_json(), encoding="utf-8")
+
+    run_pipeline(_src(tmp_path), settings=settings, name="t", rerender_only=True)
+
+    result = AuditResult.model_validate_json(
+        (inter / "audit.json").read_text(encoding="utf-8"))
+    # mechanical recomputed: blank owner -> fail -> overall_pass False
+    assert result.overall_pass is False
+    owner_check = next(c for c in result.mechanical if c.key == "action_owner_present")
+    assert owner_check.offending == ["A1"]
+    # semantic preserved from cache
+    assert result.semantic[0].rationale == "cached"
+
+
+@patch("script.pipeline.write_minutes_html")
+@patch("script.pipeline.write_review_report_md")
+@patch("script.pipeline.write_email_html")
+def test_rerender_without_cached_audit_writes_mechanical_only(
+    write_email, write_r, write_x, tmp_path,
+):
+    from script.schemas import SynthesizedMinutes, SynthTopic, AuditResult
+    settings = _settings(tmp_path)
+    inter = Path(settings.out_dir) / "t" / "intermediate"
+    inter.mkdir(parents=True)
+    (inter / "minutes.json").write_text(
+        MeetingMinutes(conclusions=[_conc()], actions=[]).model_dump_json(),
+        encoding="utf-8")
+    (inter / "review.json").write_text(
+        ReviewResult(notes=[]).model_dump_json(), encoding="utf-8")
+    (inter / "synthesized.json").write_text(
+        SynthesizedMinutes(topics=[SynthTopic(title="t", summary="s")]
+                           ).model_dump_json(), encoding="utf-8")
+    # no audit.json present (older run)
+
+    run_pipeline(_src(tmp_path), settings=settings, name="t", rerender_only=True)
+
+    result = AuditResult.model_validate_json(
+        (inter / "audit.json").read_text(encoding="utf-8"))
+    assert result.semantic == []          # nothing cached, no LLM on rerender
+    assert result.mechanical              # mechanical still computed
+    assert result.overall_pass is True    # no actions/decisions -> nothing to fail

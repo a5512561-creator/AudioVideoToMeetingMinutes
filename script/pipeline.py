@@ -122,6 +122,30 @@ def run_pipeline(
         review = ReviewResult.model_validate_json(review_path.read_text(encoding="utf-8"))
         synth = SynthesizedMinutes.model_validate_json(synth_path.read_text(encoding="utf-8"))
 
+        # Rebuild audit deterministically (LLM-free on rerender). Mechanical
+        # checks reflect any hand-edits to the cached synthesized.json; semantic
+        # scores are preserved from a prior audit.json when present (older runs
+        # may not have one -> semantic stays empty).
+        audit_path = inter_dir / "audit.json"
+        cached_semantic = []
+        cached_reviewed = False
+        if audit_path.exists():
+            prior = AuditResult.model_validate_json(
+                audit_path.read_text(encoding="utf-8"))
+            cached_semantic = prior.semantic
+            cached_reviewed = prior.reviewed
+        mech = audit_mechanical.evaluate(synth)
+        audit_result = AuditResult(
+            mechanical=mech,
+            semantic=cached_semantic,
+            overall_pass=audit_mechanical.overall_pass(mech),
+            reviewed=cached_reviewed,
+        )
+        audit_path.write_text(audit_result.model_dump_json(), encoding="utf-8")
+        log_kv(logger, "INFO", "stage.audit",
+               mechanical_pass=audit_result.overall_pass,
+               semantic_items=len(cached_semantic), mode="rerender")
+
         clips = _cut_audio_clips(out_dir, synth, settings)
         log_kv(logger, "INFO", "stage.audio_clips", count=len(clips), mode="rerender")
 
