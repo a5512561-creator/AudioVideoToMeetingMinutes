@@ -178,6 +178,7 @@ email 版型現為 Python（`email_writer.py` + `minutes_email.html.j2`）。前
 - File System Access API 僅 Chrome/Edge → 降級路徑須測試。
 - **zip E2E 驗證的自動化細節**：以哪個 browser automation 驅動（Claude-in-Chrome / Playwright / headless）、如何判定「真出聲」（`duration>0` + `currentTime` 推進 + 無 error，vs 更嚴格的解碼取樣）、逐條驗多少切片的時間成本、失敗切片是否觸發重切（retry `cut_clips`）。計畫階段定義。
 - **E2E 驗證與隱私（點 3）交互**：驗證只碰切片音檔（已是輸出物），不碰原始逐字稿；仍須確認公司 LLM 模式下此步不外洩內容。
+- **`reviewed=True` + `overall_pass=False` 的組合（P1 rerender 後可能出現）**：rerender 是 LLM-free，會沿用快取 `audit.json` 的 `reviewed` 旗標，但機械檢查會依手改後的 `synthesized.json` 重算。若使用者改壞了某欄位（如清空負責人），會得到「已審閱但機械未過」的 audit.json。**P3 的可編輯頁不可把 `reviewed=True` 當權威**，必須同時重驗 Layer-1（`overall_pass`）才決定匯出鈕是否解鎖 —「已審閱」與「機械通過」是兩個獨立閘，兩者皆須為真。
 
 ---
 
