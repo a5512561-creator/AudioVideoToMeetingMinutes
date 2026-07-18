@@ -11,6 +11,12 @@ def _good():
     )
 
 
+def test_empty_minutes_all_pass_vacuously():
+    checks = evaluate(SynthesizedMinutes())
+    assert all(c.passed for c in checks)
+    assert overall_pass(checks) is True
+
+
 def test_good_minutes_all_pass():
     checks = evaluate(_good())
     keys = {c.key for c in checks}

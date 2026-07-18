@@ -9,6 +9,11 @@ field paths like "A1.task" / "T1.summary".
 from script.schemas import SynthesizedMinutes, AuditCheckMechanical
 
 # Any of these appearing in a text field means the content is not final.
+# Intentionally aggressive substring matching: `_has_marker` uses `in`, so a
+# bare form like "待確認" also flags "[待確認]" and "待補" also flags "待補充".
+# The redundant entries are kept deliberately for clarity when this list is
+# re-implemented in JS. Trade-off: legitimate prose containing these substrings
+# will false-positive — acceptable for a "needs-final-review" signal.
 PLACEHOLDER_MARKERS = ("[待確認]", "待確認", "TODO", "TBD", "待補", "待補充")
 
 
@@ -64,7 +69,7 @@ def evaluate(synth: SynthesizedMinutes) -> list[AuditCheckMechanical]:
                 marker_hits.append(f"T{i}.d{j}")
     for i, a in enumerate(actions, 1):
         for field in ("task", "owner", "due", "context"):
-            if _has_marker(getattr(a, field, "")):
+            if _has_marker(getattr(a, field)):
                 marker_hits.append(f"A{i}.{field}")
     checks.append(check(
         "no_placeholder_markers", "無殘留待確認 / TODO 標記", marker_hits))
