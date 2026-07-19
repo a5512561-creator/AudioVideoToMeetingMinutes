@@ -1,6 +1,6 @@
 ---
-name: minutes
-description: Convert a prepared meeting transcript + audio in a folder into structured meeting minutes. Use when the user wants to turn a transcript/recording into minutes, or says "轉會議記錄" / "做會議記錄" / "/minutes". ALWAYS asks which LLM (company on-prem vs the Claude session) before touching anything.
+name: meetingminutes
+description: Convert a prepared meeting transcript + audio in a folder into structured meeting minutes. Use when the user wants to turn a transcript/recording into minutes, or says "轉會議記錄" / "做會議記錄" / "/meetingminutes". ALWAYS asks which LLM (company on-prem vs the Claude session) before touching anything.
 ---
 
 # Meeting Minutes — Entry Skill

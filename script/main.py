@@ -30,7 +30,7 @@ def process(
         None, "--llm",
         help="Which LLM will process this meeting: 'company' (on-prem, "
              "confidential-safe) or 'claude' (the Claude session writes the "
-             "JSON itself — use the /minutes engine-B flow, not this full run). "
+             "JSON itself — use the /meetingminutes engine-B flow, not this full run). "
              "Required for a full run; not needed with --rerender.",
     ),
     force: bool = typer.Option(False, "--force", help="Ignore stage cache, re-run all stages."),
@@ -46,12 +46,12 @@ def process(
             typer.echo(
                 "拒絕執行：整檔轉換必須明確指定 --llm。\n"
                 "  --llm company  用公司地端 LLM（機密安全，逐字稿不出公司）\n"
-                "  --llm claude   改走 /minutes 的 engine-B 流程（由 Claude 本人寫 JSON 後 --rerender）",
+                "  --llm claude   改走 /meetingminutes 的 engine-B 流程（由 Claude 本人寫 JSON 後 --rerender）",
             )
             raise typer.Exit(code=2)
         if llm is LlmChoice.claude:
             typer.echo(
-                "--llm claude 不經由本 full-run 路徑。請用 /minutes skill 的 "
+                "--llm claude 不經由本 full-run 路徑。請用 /meetingminutes skill 的 "
                 "engine-B 流程：讓 Claude 讀逐字稿、寫出 intermediate JSON，"
                 "再執行 `process <src> --rerender`。",
             )
