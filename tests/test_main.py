@@ -14,7 +14,7 @@ def test_cli_passes_basic_args(monkeypatch, tmp_path):
     _env(monkeypatch, tmp_path)
     runner = CliRunner()
     with patch("script.main.run_pipeline") as run:
-        result = runner.invoke(app, ["process", "transcript.txt", "--name", "test", "--force"])
+        result = runner.invoke(app, ["process", "transcript.txt", "--name", "test", "--force", "--llm", "company"])
     assert result.exit_code == 0, result.output
     args, kwargs = run.call_args
     assert args[0] == "transcript.txt"
@@ -46,7 +46,7 @@ def test_cli_model_override(monkeypatch, tmp_path):
     runner = CliRunner()
     with patch("script.main.run_pipeline") as run:
         result = runner.invoke(
-            app, ["process", "transcript.txt", "--name", "t", "--model", "claude-opus-4-7"]
+            app, ["process", "transcript.txt", "--name", "t", "--model", "claude-opus-4-7", "--llm", "company"]
         )
     assert result.exit_code == 0, result.output
     assert run.call_args.kwargs["settings"].openai_model == "claude-opus-4-7"
@@ -57,9 +57,51 @@ def test_cli_no_model_keeps_env_default(monkeypatch, tmp_path):
     _env(monkeypatch, tmp_path)  # OPENAI_MODEL="m"
     runner = CliRunner()
     with patch("script.main.run_pipeline") as run:
-        result = runner.invoke(app, ["process", "transcript.txt", "--name", "t"])
+        result = runner.invoke(app, ["process", "transcript.txt", "--name", "t", "--llm", "company"])
     assert result.exit_code == 0, result.output
     assert run.call_args.kwargs["settings"].openai_model == "m"
+
+
+def test_cli_process_requires_llm_choice(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    runner = CliRunner()
+    with patch("script.main.run_pipeline"):
+        result = runner.invoke(app, ["process", "transcript.txt", "--name", "t"])
+    # no --llm on a full run -> refuse
+    assert result.exit_code != 0
+    assert "--llm" in result.output
+
+
+def test_cli_process_company_proceeds(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    runner = CliRunner()
+    with patch("script.main.run_pipeline") as run:
+        result = runner.invoke(
+            app, ["process", "transcript.txt", "--name", "t", "--llm", "company"])
+    assert result.exit_code == 0, result.output
+    run.assert_called_once()
+
+
+def test_cli_process_claude_refuses_fullrun(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    runner = CliRunner()
+    with patch("script.main.run_pipeline") as run:
+        result = runner.invoke(
+            app, ["process", "transcript.txt", "--name", "t", "--llm", "claude"])
+    assert result.exit_code != 0
+    assert "rerender" in result.output.lower() or "engine" in result.output.lower()
+    run.assert_not_called()
+
+
+def test_cli_rerender_exempt_from_llm_choice(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    runner = CliRunner()
+    with patch("script.main.run_pipeline") as run:
+        result = runner.invoke(
+            app, ["process", "transcript.txt", "--name", "t", "--rerender"])
+    # --rerender calls no LLM -> allowed without --llm
+    assert result.exit_code == 0, result.output
+    assert run.call_args.kwargs["rerender_only"] is True
 
 
 def test_cli_finalize_resolves_name_and_calls_run(monkeypatch, tmp_path):

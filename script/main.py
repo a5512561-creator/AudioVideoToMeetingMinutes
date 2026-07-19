@@ -1,3 +1,4 @@
+from enum import Enum
 from pathlib import Path
 
 import typer
@@ -5,6 +6,11 @@ from script.config import Settings
 from script.finalize import run_finalize
 from script.pipeline import run_pipeline
 from script.validate_source import validate_source
+
+
+class LlmChoice(str, Enum):
+    company = "company"
+    claude = "claude"
 
 
 app = typer.Typer(help="Convert a prepared meeting transcript to structured minutes.")
@@ -20,6 +26,13 @@ def process(
              "gpt-latest). Defaults to the .env value (medium, on-prem). Use a "
              "cloud model for non-confidential meetings where quality > privacy.",
     ),
+    llm: LlmChoice | None = typer.Option(
+        None, "--llm",
+        help="Which LLM will process this meeting: 'company' (on-prem, "
+             "confidential-safe) or 'claude' (the Claude session writes the "
+             "JSON itself — use the /minutes engine-B flow, not this full run). "
+             "Required for a full run; not needed with --rerender.",
+    ),
     force: bool = typer.Option(False, "--force", help="Ignore stage cache, re-run all stages."),
     rerender: bool = typer.Option(
         False, "--rerender",
@@ -28,6 +41,21 @@ def process(
     ),
     verbose: bool = typer.Option(False, "-v", "--verbose"),
 ) -> None:
+    if not rerender:
+        if llm is None:
+            typer.echo(
+                "拒絕執行：整檔轉換必須明確指定 --llm。\n"
+                "  --llm company  用公司地端 LLM（機密安全，逐字稿不出公司）\n"
+                "  --llm claude   改走 /minutes 的 engine-B 流程（由 Claude 本人寫 JSON 後 --rerender）",
+            )
+            raise typer.Exit(code=2)
+        if llm is LlmChoice.claude:
+            typer.echo(
+                "--llm claude 不經由本 full-run 路徑。請用 /minutes skill 的 "
+                "engine-B 流程：讓 Claude 讀逐字稿、寫出 intermediate JSON，"
+                "再執行 `process <src> --rerender`。",
+            )
+            raise typer.Exit(code=2)
     settings = Settings()
     if verbose:
         settings.log_level = "DEBUG"
