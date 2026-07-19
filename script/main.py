@@ -56,7 +56,8 @@ def validate(
     typer.echo(f"檔案：{r.path}")
     typer.echo(f"存在：{r.exists}  UTF-8：{r.utf8}  非空：{r.non_empty}")
     typer.echo(f"時間戳行數：{r.timestamp_lines}  範圍：{r.first_timestamp}–{r.last_timestamp}")
-    typer.echo(f"同名音檔：{r.has_sibling_audio} {r.audio_ext}")
+    audio_info = f"（{r.audio_ext}）" if r.audio_ext else ""
+    typer.echo(f"同名音檔：{'有' if r.has_sibling_audio else '無'}{audio_info}")
     if r.ok:
         typer.echo("結果：OK ✅")
     else:
