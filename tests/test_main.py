@@ -82,3 +82,25 @@ def test_cli_finalize_reuse_flag(monkeypatch, tmp_path):
         result = runner.invoke(app, ["finalize", "x.txt", "--name", "t", "--reuse"])
     assert result.exit_code == 0, result.output
     assert run.call_args.kwargs["reuse"] is True
+
+
+def test_cli_validate_ok(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    src = tmp_path / "mtg.txt"
+    src.write_text("00:00 hi\n00:10 bye\n", encoding="utf-8")
+    runner = CliRunner()
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code == 0, result.output
+    assert "OK" in result.output
+    # metadata only — no transcript text echoed
+    assert "hi" not in result.output
+
+
+def test_cli_validate_bad_exits_nonzero(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    src = tmp_path / "flat.txt"
+    src.write_text("沒有時間戳\n", encoding="utf-8")
+    runner = CliRunner()
+    result = runner.invoke(app, ["validate", str(src)])
+    assert result.exit_code != 0
+    assert "時間戳" in result.output

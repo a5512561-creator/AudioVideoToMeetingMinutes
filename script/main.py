@@ -4,6 +4,7 @@ import typer
 from script.config import Settings
 from script.finalize import run_finalize
 from script.pipeline import run_pipeline
+from script.validate_source import validate_source
 
 
 app = typer.Typer(help="Convert a prepared meeting transcript to structured minutes.")
@@ -39,6 +40,30 @@ def process(
         force=force,
         rerender_only=rerender,
     )
+
+
+@app.command()
+def validate(
+    src: str = typer.Argument(..., help="Path to the transcript file to check."),
+) -> None:
+    """Check a transcript is ready to process — LLM-free, metadata only.
+
+    Prints readiness metadata (never transcript content) and exits non-zero
+    when the source is not ready. Safe to run in either LLM mode: the output
+    exposes no confidential text.
+    """
+    r = validate_source(src)
+    typer.echo(f"檔案：{r.path}")
+    typer.echo(f"存在：{r.exists}  UTF-8：{r.utf8}  非空：{r.non_empty}")
+    typer.echo(f"時間戳行數：{r.timestamp_lines}  範圍：{r.first_timestamp}–{r.last_timestamp}")
+    typer.echo(f"同名音檔：{r.has_sibling_audio} {r.audio_ext}")
+    if r.ok:
+        typer.echo("結果：OK ✅")
+    else:
+        typer.echo("結果：NOT OK ❌")
+        for p in r.problems:
+            typer.echo(f"  - {p}")
+        raise typer.Exit(code=1)
 
 
 @app.command()
