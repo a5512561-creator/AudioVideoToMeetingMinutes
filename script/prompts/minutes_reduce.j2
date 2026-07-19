@@ -8,3 +8,11 @@
 
 各段抽取結果：
 {{ chunk_extracts_json }}
+
+# 輸出格式（絕對遵守）
+最外層是一個 JSON 物件，**恰好**三個 key：`conclusions`、`actions`、`key_points`。
+每個 key 的值都是一個**陣列**（array），直接是物件清單，**不要**包一層 `{"items": [...]}`，也不要用其他包裝 key。三個 key **都必須出現**；若某類沒有內容就給空陣列 `[]`，不可省略。
+`actions` 陣列裡每個元素的欄位與各段抽取結果中的 action 完全相同（task、owner、due、priority、context、source_quote、source_timestamp、source_speaker、rationale、is_inferred、owner_inferred、due_inferred、priority_inferred）。
+
+骨架範例（僅示範形狀，內容以上面各段結果為準）：
+{"conclusions": [ {"text": "...", "is_inferred": false, "source_quote": "...", "source_timestamp": "00:00", "source_speaker": null} ], "actions": [ {"task": "...", "owner": "未明", "due": "未明", "priority": "medium", "context": "...", "source_quote": "...", "source_timestamp": "00:00", "source_speaker": null, "rationale": "...", "is_inferred": true, "owner_inferred": true, "due_inferred": true, "priority_inferred": true} ], "key_points": [ {"text": "...", "is_inferred": false, "source_quote": "...", "source_timestamp": "00:00", "source_speaker": null} ]}

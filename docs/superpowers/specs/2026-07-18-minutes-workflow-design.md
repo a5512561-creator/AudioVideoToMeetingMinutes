@@ -50,7 +50,7 @@
 
 點 3 是資安**硬要求**（機密逐字稿絕不碰雲端）。硬要求用機制擋，不靠自律。三層各守一關:
 
-1. **主入口 = superpowers skill `/minutes`（HARD-GATE）**
+1. **主入口 = superpowers skill `/meetingminutes`（HARD-GATE）**
    skill body 強制先問「公司 LLM（default）還是 Claude 目前使用的 LLM」。取代原先脆弱的 UserPromptSubmit pattern hook。skill 觸發最可靠 → 保證「問」。
 
 2. **CLI 沒帶 LLM 選擇就報錯**
@@ -189,7 +189,7 @@ email 版型現為 Python（`email_writer.py` + `minutes_email.html.j2`）。前
 |------|------|
 | 匯出機制 | 純前端 File System Access API，無 server |
 | 引擎 B 本質 | Claude session 自己寫 JSON（Claude Max，無 API key），非 Python 呼叫雲端 API |
-| 主入口 | superpowers skill `/minutes`（HARD-GATE 先問 LLM 選擇） |
+| 主入口 | superpowers skill `/meetingminutes`（HARD-GATE 先問 LLM 選擇） |
 | 隱私隔離 | 三層：skill + CLI 拒跑 + PreToolUse hook 開啟 |
 | audit 閘 | 三層：機械項 JS 即時鎖匯出 + 語意項 LLM 評分/已審閱 + zip 音檔 E2E 逐條真聽 |
 | zip 驗證 | zip 前快檢 → 解壓 → 真啟瀏覽器逐條點聽（每連結不抽樣）→ 全過才刪暫存 |
