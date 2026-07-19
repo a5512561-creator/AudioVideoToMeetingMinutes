@@ -1,5 +1,34 @@
 from typing import Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+
+
+def _unwrap_items(value):
+    """Coerce the on-prem `expert` model's ``{"items": [...]}`` wrapper back to a
+    bare list. In JSON mode that model sometimes mirrors a JSON-Schema ``array``
+    by emitting the literal schema keyword — ``"conclusions": {"items": [...]}``
+    — instead of the array itself. The payload is valid JSON but the wrong shape,
+    so ``_repair_json`` (which only fixes malformed JSON) can't catch it. Unwrap
+    a lone ``{"items": [list]}`` to ``[list]``; leave anything else untouched so
+    genuinely-missing fields still fail validation (we never fabricate data)."""
+    if isinstance(value, dict) and list(value.keys()) == ["items"] and isinstance(value["items"], list):
+        return value["items"]
+    return value
+
+
+class _UnwrapListFields:
+    """Mixin: before validation, unwrap any list field the on-prem model wrapped
+    as ``{"items": [...]}``. Applied to the response models the flaky `expert`
+    endpoint fills (see :func:`_unwrap_items`)."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_wrapped_lists(cls, data):
+        if not isinstance(data, dict):
+            return data
+        for field, info in cls.model_fields.items():
+            if field in data:
+                data[field] = _unwrap_items(data[field])
+        return data
 
 
 class Conclusion(BaseModel):
@@ -37,14 +66,14 @@ class KeyPoint(BaseModel):
     source_speaker: str | None = None
 
 
-class ChunkExtract(BaseModel):
+class ChunkExtract(_UnwrapListFields, BaseModel):
     topics: list[str]
     conclusions: list[Conclusion]
     actions: list[Action]
     key_points: list[KeyPoint] = []
 
 
-class MeetingMinutes(BaseModel):
+class MeetingMinutes(_UnwrapListFields, BaseModel):
     conclusions: list[Conclusion]
     actions: list[Action]
     key_points: list[KeyPoint] = []
