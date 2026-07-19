@@ -6,18 +6,39 @@ the meeting folder. This hook denies any Read / Grep / Glob / Bash tool call
 that targets one of those paths, so the confidential transcript/audio can never
 be ingested by the cloud LLM. Absent lock -> never blocks.
 
-The Bash guard is best-effort only: it is a string scan of the command, which
-is bypassable via shell tricks (globbing, encoding, variable expansion, copying
-the file first). The hard guarantee comes from the exact-path Read / Grep / Glob
-block, plus the company-mode skill asking the user first. Do not rely on the
-Bash scan as a security boundary.
+The Bash guard is best-effort only. It discovers the lock from cwd AND from the
+directories of path-like tokens in the command (so it engages even when cwd is
+the repo root and the lock lives in a meeting subfolder), then string-scans the
+command for protected paths. It remains bypassable — a determined command can
+still evade the scan (globbing, encoding, variable expansion, copying the file
+first). The hard guarantee comes from the exact-path Read / Grep / Glob block,
+plus the company-mode skill asking the user first. Do not rely on the Bash scan
+as a security boundary.
 """
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
 _READ_TOOLS = ("Read", "Grep", "Glob")
+
+# Tokens in a shell command that look like file paths — used to discover a
+# lock that lives beside a referenced file (Bash cwd alone is not enough).
+_CMD_TOKEN_RE = re.compile(r"""[^\s"'|&;<>()]+""")
+_PATHISH_EXT = (".vtt", ".txt", ".md", ".m4a", ".mp3", ".wav", ".ogg", ".aac")
+
+
+def _command_path_dirs(cmd: str) -> list[str]:
+    """Parent directories of path-like tokens in a shell command (best-effort)."""
+    dirs = []
+    for tok in _CMD_TOKEN_RE.findall(cmd or ""):
+        if "/" in tok or "\\" in tok or tok.lower().endswith(_PATHISH_EXT):
+            try:
+                dirs.append(str(Path(tok).parent))
+            except (OSError, ValueError):
+                pass
+    return dirs
 
 
 def _norm(p: str) -> str:
@@ -117,9 +138,9 @@ def main() -> int:
 
     PreToolUse contract: exit code 2 blocks the tool call and shows stderr to
     Claude; exit code 0 allows it. The lock is discovered by walking up from the
-    target file's directory (read tools) or from cwd (Bash), so protection works
-    even when the session cwd is the repo root and the lock lives in the meeting
-    subfolder.
+    target file's directory (read tools), or from cwd plus the directories of
+    path-like tokens in the command (Bash), so protection works even when the
+    session cwd is the repo root and the lock lives in the meeting subfolder.
     """
     for stream in (sys.stdin, sys.stderr):
         try:
@@ -137,18 +158,23 @@ def main() -> int:
 
     if tool_name in _READ_TOOLS:
         target = tool_input.get("file_path") or tool_input.get("path") or ""
-        start = str(Path(target).parent) if target else str(Path.cwd())
+        start_dirs = [str(Path(target).parent)] if target else [str(Path.cwd())]
+    elif tool_name == "Bash":
+        start_dirs = [str(Path.cwd())] + _command_path_dirs(tool_input.get("command", ""))
     else:
-        start = str(Path.cwd())
-    lock, lock_dir = find_lock(start)
+        start_dirs = [str(Path.cwd())]
 
-    blocked, reason = should_block(tool_name, tool_input, lock, lock_dir)
-    if blocked:
-        try:
-            sys.stderr.write(reason)
-        except Exception:
-            pass  # a failed message must not turn a block (exit 2) into exit 1
-        return 2
+    for sd in start_dirs:
+        lock, lock_dir = find_lock(sd)
+        if not lock:
+            continue
+        blocked, reason = should_block(tool_name, tool_input, lock, lock_dir)
+        if blocked:
+            try:
+                sys.stderr.write(reason)
+            except Exception:
+                pass  # a failed message must not turn a block (exit 2) into exit 1
+            return 2
     return 0
 
 

@@ -137,3 +137,25 @@ def test_main_block_survives_stderr_write_failure(tmp_path, monkeypatch):
     monkeypatch.setattr("sys.stderr", _BoomWriter())
     # even though writing the reason fails, the block must still exit 2
     assert _guard.main() == 2
+
+
+def test_main_bash_blocks_referenced_protected_file_from_other_cwd(tmp_path, monkeypatch):
+    mtg = tmp_path / "meeting"
+    mtg.mkdir()
+    (mtg / "m.vtt").write_text("x", encoding="utf-8")
+    (mtg / ".minutes-company-lock.json").write_text(
+        _json.dumps({"protected": [str(mtg / "m.vtt")]}), encoding="utf-8")
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    monkeypatch.chdir(other)  # cwd is NOT the meeting folder
+    payload = {"tool_name": "Bash",
+               "tool_input": {"command": f'cat "{mtg / "m.vtt"}"'}}
+    monkeypatch.setattr("sys.stdin", io.StringIO(_json.dumps(payload)))
+    assert _guard.main() == 2
+
+
+def test_main_bash_allows_unrelated_command(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    payload = {"tool_name": "Bash", "tool_input": {"command": "echo hello"}}
+    monkeypatch.setattr("sys.stdin", io.StringIO(_json.dumps(payload)))
+    assert _guard.main() == 0
