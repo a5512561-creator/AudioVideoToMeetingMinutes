@@ -12,9 +12,20 @@ from pydantic import BaseModel
 
 from script.audio_assets import find_sibling_audio
 
-# MM:SS or HH:MM:SS at the start of a line (optionally bracketed), matching the
-# recorder.google.com transcript style the pipeline already relies on.
-_TS_RE = re.compile(r"^\s*\[?(\d{1,2}:\d{2}(?::\d{2})?)\b")
+# Plain Android-Recorder style: MM:SS or HH:MM:SS at line start (optionally bracketed).
+_TS_PLAIN = re.compile(r"^\s*\[?(\d{1,2}:\d{2}(?::\d{2})?)\b")
+# WebVTT cue-timing line: HH:MM:SS.mmm --> HH:MM:SS.mmm (the real .vtt source format).
+_TS_VTT = re.compile(r"^\s*(\d{2}:\d{2}:\d{2})\.\d+\s+-->")
+
+
+def _extract_timestamp(line: str) -> str | None:
+    m = _TS_VTT.match(line)
+    if m:
+        return m.group(1)
+    m = _TS_PLAIN.match(line)
+    if m:
+        return m.group(1)
+    return None
 
 # A meeting with almost no content is not worth processing; guards against a
 # user pointing at an empty or near-empty file.
@@ -60,9 +71,9 @@ def validate_source(src: str) -> SourceReport:
 
     stamps: list[str] = []
     for line in text.splitlines():
-        m = _TS_RE.match(line)
-        if m:
-            stamps.append(m.group(1))
+        ts = _extract_timestamp(line)
+        if ts:
+            stamps.append(ts)
     report.timestamp_lines = len(stamps)
     if stamps:
         report.first_timestamp = stamps[0]

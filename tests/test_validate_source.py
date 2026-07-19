@@ -53,3 +53,31 @@ def test_detects_sibling_audio(tmp_path):
     r = validate_source(str(tmp_path / "mtg.txt"))
     assert r.has_sibling_audio is True
     assert r.audio_ext == ".m4a"
+
+
+def test_valid_vtt_transcript_reports_ok(tmp_path):
+    vtt = ("WEBVTT\n\n"
+           "00:00:00.000 --> 00:00:03.500\n大家好\n\n"
+           "00:01:05.200 --> 00:01:08.000\n結論\n")
+    src = _write(tmp_path / "mtg.vtt", vtt)
+    r = validate_source(str(src))
+    assert r.timestamp_lines == 2
+    assert r.first_timestamp == "00:00:00"
+    assert r.last_timestamp == "00:01:05"
+    assert r.ok is True
+
+
+def test_vtt_report_leaks_no_text(tmp_path):
+    vtt = ("WEBVTT\n\n00:00:00.000 --> 00:00:03.500\n極機密 BLUEFALCON\n")
+    src = _write(tmp_path / "s.vtt", vtt)
+    r = validate_source(str(src))
+    assert "BLUEFALCON" not in r.model_dump_json()
+
+
+def test_non_utf8_file_flagged(tmp_path):
+    p = tmp_path / "bad.vtt"
+    p.write_bytes(b"\xff\xfe\x00bad")
+    r = validate_source(str(p))
+    assert r.exists is True
+    assert r.utf8 is False
+    assert r.ok is False
