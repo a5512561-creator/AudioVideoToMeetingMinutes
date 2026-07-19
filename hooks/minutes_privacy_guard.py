@@ -21,7 +21,7 @@ _READ_TOOLS = ("Read", "Grep", "Glob")
 
 
 def _norm(p: str) -> str:
-    """Normalise a path for comparison (resolve separators + case on Windows)."""
+    """Normalise a path for case-insensitive, separator-agnostic comparison (Windows-safe)."""
     try:
         return str(Path(p)).replace("\\", "/").casefold()
     except (TypeError, ValueError):
@@ -67,7 +67,7 @@ def find_lock(start_dir):
     return None, None
 
 
-def should_block(tool_name, tool_input, lock, lock_dir=None) -> tuple[bool, str]:
+def should_block(tool_name: str, tool_input: dict, lock: dict | None, lock_dir: str | None = None) -> tuple[bool, str]:
     """Return (blocked, reason). `lock` is the parsed lock dict or None.
 
     Protected paths are resolved against `lock_dir` when relative, so a lock
@@ -97,6 +97,10 @@ def should_block(tool_name, tool_input, lock, lock_dir=None) -> tuple[bool, str]
         return False, ""
 
     if tool_name == "Bash":
+        # Best-effort only: a shell command has no single target path and no
+        # meaningful base_dir, so we do a lexical scan with _norm (no symlink /
+        # `..` canonicalisation like the Read/Grep/Glob path). Bypassable — the
+        # hard guarantee is the exact-path block above, not this.
         cmd = _norm(tool_input.get("command", ""))
         # Best-effort string scan (see module docstring): match by normalised
         # full path or basename appearing anywhere in the command.
