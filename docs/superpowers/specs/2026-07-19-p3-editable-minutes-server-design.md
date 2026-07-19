@@ -131,6 +131,7 @@ python -m script.main edit <name> [--name <name>] [--no-browser] [--port <n>]
 - **JS Layer-1 與 `audit_mechanical.py` 的同步紀律**：改一邊要改另一邊；理想以共用固定案例測比對。
 - **Outlook subject 來源**：沿用 `synth_to_finalized` 的 subject 規則（會議名）。
 - **並發**：單使用者本地工具，server 假設單一 client；不處理多分頁同時編輯的衝突。
+- **[P3 最終審查發現，待你定奪] action `context` 標記缺口**：`audit_mechanical` 的 `no_placeholder_markers` 會掃 action 的 `context`，但（a）編輯頁沒把 `context` 設為可編輯欄位，（b）`context` 不在匯出的 email 裡（`synth_to_finalized` 只帶 task/owner/due/note，不帶 context/priority）。若 `synthesized.json` 某 action 的 `context` 含 `TODO`/`[待確認]` 等標記 → audit 恆紅、UI 無從修 → 該會議在頁面上永遠匯不出（死結）。兩個修法擇一（是產品判斷）：(i) 把 `context` 從 `no_placeholder_markers` 掃描移除（理由：只 gate「會出現在成品 email 且可編輯」的欄位）— 需同步改 `audit_mechanical.py` + JS 鏡像 + 測試；或 (ii) 在編輯頁把 `context` 設為可編輯欄位。發生機率低（context 常為空），非阻斷，故留為 follow-up。
 
 ---
 
