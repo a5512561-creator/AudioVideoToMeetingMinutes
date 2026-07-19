@@ -1,4 +1,7 @@
-from hooks.minutes_privacy_guard import should_block
+import json
+from pathlib import Path
+
+from hooks.minutes_privacy_guard import should_block, find_lock, _resolve
 
 
 LOCK = {"protected": ["/proj/mtg/mtg.vtt", "/proj/mtg/mtg.m4a"]}
@@ -37,3 +40,40 @@ def test_path_normalisation_matches_mixed_separators():
     lock = {"protected": ["C:/proj/mtg/mtg.vtt"]}
     blocked, _ = should_block("Read", {"file_path": "C:\\proj\\mtg\\mtg.vtt"}, lock)
     assert blocked is True
+
+
+def test_find_lock_walks_up_from_target_dir(tmp_path):
+    mtg = tmp_path / "meetings" / "m1"
+    mtg.mkdir(parents=True)
+    (mtg / ".minutes-company-lock.json").write_text(
+        json.dumps({"protected": ["m1.vtt"]}), encoding="utf-8")
+    lock, lock_dir = find_lock(str(mtg / "sub"))  # start below the lock dir
+    assert lock == {"protected": ["m1.vtt"]}
+    assert Path(lock_dir) == mtg.resolve()
+
+
+def test_find_lock_absent_returns_none(tmp_path):
+    lock, lock_dir = find_lock(str(tmp_path))
+    assert lock is None and lock_dir is None
+
+
+def test_find_lock_corrupt_fails_closed(tmp_path):
+    (tmp_path / ".minutes-company-lock.json").write_text("{bad json", encoding="utf-8")
+    lock, lock_dir = find_lock(str(tmp_path))
+    assert lock == {"protected": ["*"]}
+
+
+def test_relative_protected_path_resolves_against_lock_dir(tmp_path):
+    lock_dir = tmp_path / "mtg"
+    lock_dir.mkdir()
+    lock = {"protected": ["m.vtt"]}
+    target = str(lock_dir / "m.vtt")
+    blocked, _ = should_block("Read", {"file_path": target}, lock, str(lock_dir))
+    assert blocked is True
+
+
+def test_wildcard_lock_blocks_reads():
+    blocked, reason = should_block("Read", {"file_path": "/anything"}, {"protected": ["*"]})
+    assert blocked is True
+    blocked2, _ = should_block("Grep", {"path": "/x"}, {"protected": ["*"]})
+    assert blocked2 is True

@@ -5,6 +5,12 @@ Company mode writes `.minutes-company-lock.json` ({"protected": [paths]}) into
 the meeting folder. This hook denies any Read / Grep / Glob / Bash tool call
 that targets one of those paths, so the confidential transcript/audio can never
 be ingested by the cloud LLM. Absent lock -> never blocks.
+
+The Bash guard is best-effort only: it is a string scan of the command, which
+is bypassable via shell tricks (globbing, encoding, variable expansion, copying
+the file first). The hard guarantee comes from the exact-path Read / Grep / Glob
+block, plus the company-mode skill asking the user first. Do not rely on the
+Bash scan as a security boundary.
 """
 import json
 import sys
@@ -21,28 +27,69 @@ def _norm(p: str) -> str:
         return str(p or "").replace("\\", "/").casefold()
 
 
-def should_block(tool_name: str, tool_input: dict, lock) -> tuple[bool, str]:
-    """Return (blocked, reason). `lock` is the parsed lock dict or None."""
+def _resolve(path: str, base_dir=None) -> str:
+    """Absolute-normalise `path`; if relative and base_dir given, resolve against it."""
+    p = Path(path)
+    if not p.is_absolute() and base_dir is not None:
+        p = Path(base_dir) / p
+    return _norm(str(p))
+
+
+def find_lock(start_dir):
+    """Walk up from start_dir looking for .minutes-company-lock.json.
+
+    Returns (lock_dict, lock_dir) or (None, None). A corrupt/unreadable lock
+    fails CLOSED: returns ({"protected": ["*"]}, that_dir).
+    """
+    if not start_dir:
+        return None, None
+    try:
+        d = Path(start_dir).resolve()
+    except (OSError, ValueError):
+        return None, None
+    for cand in (d, *d.parents):
+        lp = cand / ".minutes-company-lock.json"
+        if lp.exists():
+            try:
+                return json.loads(lp.read_text(encoding="utf-8")), cand
+            except (json.JSONDecodeError, OSError):
+                return {"protected": ["*"]}, cand
+    return None, None
+
+
+def should_block(tool_name, tool_input, lock, lock_dir=None) -> tuple[bool, str]:
+    """Return (blocked, reason). `lock` is the parsed lock dict or None.
+
+    Protected paths are resolved against `lock_dir` when relative, so a lock
+    written with meeting-relative filenames still matches absolute tool targets.
+    A wildcard lock (`{"protected": ["*"]}`, the fail-closed corrupt case)
+    blocks every read-ish tool.
+    """
     protected = list((lock or {}).get("protected", []))
     if not protected:
         return False, ""
-    protected_norm = {_norm(p) for p in protected}
+    reason = ("隱私鎖：本次會議選擇公司地端 LLM，逐字稿／錄音檔不得被雲端 LLM 讀取。"
+              "此檔案在保護清單中，已封鎖。")
+    reason_corrupt = "隱私鎖檔毀損，為安全起見封鎖所有讀取。請檢查 .minutes-company-lock.json。"
 
-    reason = (
-        "隱私鎖：本次會議選擇公司地端 LLM，逐字稿／錄音檔不得被雲端 LLM 讀取。"
-        "此檔案在保護清單中，已封鎖。"
-    )
+    # Fail-closed wildcard: corrupt lock blocks all read-ish tools.
+    if protected == ["*"]:
+        if tool_name in _READ_TOOLS + ("Bash",):
+            return True, reason_corrupt
+        return False, ""
+
+    protected_norm = {_resolve(p, lock_dir) for p in protected}
 
     if tool_name in _READ_TOOLS:
         target = tool_input.get("file_path") or tool_input.get("path") or ""
-        if _norm(target) in protected_norm:
+        if _resolve(target) in protected_norm:
             return True, reason
         return False, ""
 
     if tool_name == "Bash":
         cmd = _norm(tool_input.get("command", ""))
-        # Block if any protected path (by normalised full path or basename)
-        # appears in the command string.
+        # Best-effort string scan (see module docstring): match by normalised
+        # full path or basename appearing anywhere in the command.
         for pn in protected_norm:
             if pn in cmd or Path(pn).name.casefold() in cmd:
                 return True, reason
@@ -51,23 +98,14 @@ def should_block(tool_name: str, tool_input: dict, lock) -> tuple[bool, str]:
     return False, ""
 
 
-def _load_lock() -> dict | None:
-    lock_path = Path.cwd() / ".minutes-company-lock.json"
-    if not lock_path.exists():
-        return None
-    try:
-        return json.loads(lock_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        # Fail CLOSED: a corrupt lock in a company-mode folder must not silently
-        # disable protection. Treat as "everything protected in this folder".
-        return {"protected": ["*"]}
-
-
 def main() -> int:
     """Harness entry: read the tool call from stdin, block if needed.
 
     PreToolUse contract: exit code 2 blocks the tool call and shows stderr to
-    Claude; exit code 0 allows it.
+    Claude; exit code 0 allows it. The lock is discovered by walking up from the
+    target file's directory (read tools) or from cwd (Bash), so protection works
+    even when the session cwd is the repo root and the lock lives in the meeting
+    subfolder.
     """
     try:
         payload = json.load(sys.stdin)
@@ -76,14 +114,15 @@ def main() -> int:
 
     tool_name = payload.get("tool_name", "")
     tool_input = payload.get("tool_input", {}) or {}
-    lock = _load_lock()
 
-    # Wildcard lock (corrupt file, fail-closed): block all read-ish tools.
-    if lock == {"protected": ["*"]} and tool_name in _READ_TOOLS + ("Bash",):
-        sys.stderr.write("隱私鎖檔毀損，為安全起見封鎖所有讀取。請檢查 .minutes-company-lock.json。")
-        return 2
+    if tool_name in _READ_TOOLS:
+        target = tool_input.get("file_path") or tool_input.get("path") or ""
+        start = str(Path(target).parent) if target else str(Path.cwd())
+    else:
+        start = str(Path.cwd())
+    lock, lock_dir = find_lock(start)
 
-    blocked, reason = should_block(tool_name, tool_input, lock)
+    blocked, reason = should_block(tool_name, tool_input, lock, lock_dir)
     if blocked:
         sys.stderr.write(reason)
         return 2
