@@ -68,7 +68,7 @@ def test_cli_process_requires_llm_choice(monkeypatch, tmp_path):
     with patch("script.main.run_pipeline"):
         result = runner.invoke(app, ["process", "transcript.txt", "--name", "t"])
     # no --llm on a full run -> refuse
-    assert result.exit_code != 0
+    assert result.exit_code == 2
     assert "--llm" in result.output
 
 
@@ -88,7 +88,7 @@ def test_cli_process_claude_refuses_fullrun(monkeypatch, tmp_path):
     with patch("script.main.run_pipeline") as run:
         result = runner.invoke(
             app, ["process", "transcript.txt", "--name", "t", "--llm", "claude"])
-    assert result.exit_code != 0
+    assert result.exit_code == 2
     assert "rerender" in result.output.lower() or "engine" in result.output.lower()
     run.assert_not_called()
 
