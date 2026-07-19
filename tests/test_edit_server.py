@@ -107,3 +107,81 @@ def test_load_data_returns_synth_and_audit(tmp_path):
     assert data["synthesized"]["topics"][0]["title"] == "議題A"
     assert data["audit"]["reviewed"] is False
     assert data["audit"]["mechanical"] == []
+
+
+def test_server_serves_page_and_handles_export(tmp_path, monkeypatch):
+    import threading
+    import urllib.request
+    from script.edit_server import build_server
+
+    out = tmp_path / "mtg"
+    (out / "intermediate").mkdir(parents=True)
+    (out / "intermediate" / "synthesized.json").write_text(
+        SynthesizedMinutes(
+            topics=[SynthTopic(title="議題A", summary="s", decisions=["決議一"])]
+        ).model_dump_json(), encoding="utf-8")
+    monkeypatch.setattr("script.edit_server.open_draft", lambda *a: False)
+
+    httpd = build_server(out)
+    assert httpd.server_address[0] == "127.0.0.1"   # localhost-only
+    port = httpd.server_address[1]
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    try:
+        page = urllib.request.urlopen(f"http://127.0.0.1:{port}/").read().decode("utf-8")
+        assert "議題A" in page and 'id="exportbtn"' in page
+
+        body = json.dumps({
+            "synthesized": {
+                "topics": [{"title": "議題A", "summary": "s", "decisions": ["決議一"]}],
+                "action_items": [],
+            },
+            "reviewed": True,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/export", data=body,
+            headers={"Content-Type": "application/json"})
+        res = json.loads(urllib.request.urlopen(req).read().decode("utf-8"))
+        assert res["ok"] is True
+        assert (out / "email.html").exists()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_server_export_failure_returns_422(tmp_path, monkeypatch):
+    import threading
+    import urllib.request
+    import urllib.error
+    from script.edit_server import build_server
+
+    out = tmp_path / "mtg"
+    (out / "intermediate").mkdir(parents=True)
+    (out / "intermediate" / "synthesized.json").write_text(
+        SynthesizedMinutes().model_dump_json(), encoding="utf-8")
+    monkeypatch.setattr("script.edit_server.open_draft", lambda *a: True)
+
+    httpd = build_server(out)
+    port = httpd.server_address[1]
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    try:
+        body = json.dumps({
+            "synthesized": {"topics": [], "action_items": [
+                {"task": "x", "owner": "", "due": "", "priority": "high"}]},
+            "reviewed": True,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/export", data=body,
+            headers={"Content-Type": "application/json"})
+        try:
+            urllib.request.urlopen(req)
+            raised = None
+        except urllib.error.HTTPError as e:
+            raised = e
+        assert raised is not None and raised.code == 422
+        payload = json.loads(raised.read().decode("utf-8"))
+        assert payload["reason"] == "audit_failed"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
