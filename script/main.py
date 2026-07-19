@@ -107,6 +107,26 @@ def validate(
 
 
 @app.command()
+def edit(
+    src: str = typer.Argument(..., help="Output folder name (or transcript path) under out/."),
+    name: str | None = typer.Option(None, "--name", help="Output folder name (defaults to src basename)."),
+    port: int = typer.Option(0, "--port", help="Port to bind (0 = auto-pick a free port)."),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Do not auto-open the browser."),
+) -> None:
+    """Open the editable minutes page in a local browser to edit + export to Outlook."""
+    from script.edit_server import serve
+    settings = Settings()
+    base = name or Path(src).stem
+    out_dir = Path(settings.out_dir) / base
+    if not (out_dir / "intermediate" / "synthesized.json").exists():
+        typer.echo(
+            f"找不到 {out_dir}/intermediate/synthesized.json — 請先對此會議跑 "
+            f"`process ... --llm company`（或 --rerender）產生綜整結果。")
+        raise typer.Exit(code=1)
+    serve(out_dir, open_browser=not no_browser, port=port)
+
+
+@app.command()
 def finalize(
     src: str = typer.Argument(..., help="Transcript path or existing output folder name (used to locate out/<name>)."),
     name: str | None = typer.Option(None, "--name", help="Output folder name (defaults to src basename)."),

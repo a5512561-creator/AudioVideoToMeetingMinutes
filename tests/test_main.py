@@ -145,3 +145,26 @@ def test_cli_validate_bad_exits_nonzero(monkeypatch, tmp_path):
     result = runner.invoke(app, ["validate", str(src)])
     assert result.exit_code != 0
     assert "時間戳" in result.output
+
+
+def test_cli_edit_calls_serve(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    inter = tmp_path / "out" / "t" / "intermediate"
+    inter.mkdir(parents=True)
+    (inter / "synthesized.json").write_text("{}", encoding="utf-8")
+    seen = {}
+    monkeypatch.setattr("script.edit_server.serve",
+                        lambda o, **k: seen.update(o=str(o), k=k))
+    runner = CliRunner()
+    result = runner.invoke(app, ["edit", "t", "--no-browser"])
+    assert result.exit_code == 0, result.output
+    assert seen["o"].replace("\\", "/").endswith("out/t")
+    assert seen["k"]["open_browser"] is False
+
+
+def test_cli_edit_missing_synth_errors(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(app, ["edit", "nope"])
+    assert result.exit_code != 0
+    assert "synthesized.json" in result.output
