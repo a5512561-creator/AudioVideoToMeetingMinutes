@@ -81,6 +81,22 @@ def test_export_outlook_unavailable_still_writes_email(tmp_path, monkeypatch):
     assert (out / "email.html").exists()
 
 
+def test_render_edit_page_embeds_data_and_controls(tmp_path):
+    from script.edit_server import render_edit_page
+    out = tmp_path / "mtg"
+    (out / "intermediate").mkdir(parents=True)
+    (out / "intermediate" / "synthesized.json").write_text(
+        SynthesizedMinutes(topics=[SynthTopic(title="議題A", summary="s")]).model_dump_json(),
+        encoding="utf-8")
+
+    html = render_edit_page(out)
+
+    assert "window.DATA" in html
+    assert "議題A" in html
+    assert 'id="exportbtn"' in html
+    assert 'id="reviewed"' in html
+
+
 def test_load_data_returns_synth_and_audit(tmp_path):
     out = tmp_path / "mtg"
     (out / "intermediate").mkdir(parents=True)

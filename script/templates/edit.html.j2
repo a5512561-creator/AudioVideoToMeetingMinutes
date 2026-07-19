@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>編輯會議記錄 — {{ meeting_name }}</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:"Noto Sans TC","Microsoft JhengHei",Arial,sans-serif;background:#f0f2f5;color:#2d3748;max-width:1000px;margin:0 auto;padding:16px}
+    header{background:#2d3748;color:#fff;border-radius:8px;padding:16px 20px;margin-bottom:12px}
+    #auditbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+    .chip{font-size:.8rem;border-radius:6px;padding:3px 8px}
+    .chip.ok{background:#c6f6d5;color:#22543d}
+    .chip.bad{background:#fed7d7;color:#822727}
+    .chip.sem{background:#e2e8f0;color:#2d3748}
+    .topic{background:#fff;border-radius:8px;border:1px solid #e2e8f0;padding:14px;margin-bottom:10px}
+    .topic h3{font-size:1.05rem;margin-bottom:6px}
+    .topic .summary{line-height:1.6;margin:6px 0}
+    .decisions{color:#0563c1;margin-top:6px}
+    [contenteditable]{outline:1px dashed #cbd5e0;padding:2px 4px;border-radius:4px}
+    [contenteditable]:focus{outline:2px solid #4299e1;background:#fff}
+    table{width:100%;border-collapse:collapse;background:#fff;font-size:.9rem;margin-top:6px}
+    th,td{border:1px solid #e2e8f0;padding:6px 8px;text-align:left;vertical-align:top}
+    th{background:#edf2f7}
+    .mini{border:1px solid #cbd5e0;background:#edf2f7;border-radius:4px;padding:0 6px;font-size:.8rem;cursor:pointer;margin-left:4px}
+    .exportrow{position:sticky;bottom:0;background:#fff;border-top:1px solid #e2e8f0;padding:12px;display:flex;align-items:center;gap:12px;margin-top:16px}
+    #exportbtn{padding:8px 18px;border:none;border-radius:6px;background:#2b6cb0;color:#fff;font-size:.95rem;cursor:pointer}
+    #exportbtn:disabled{background:#a0aec0;cursor:not-allowed}
+    #status{font-size:.9rem}
+    h2{font-size:1.05rem;margin:10px 0 4px}
+  </style>
+</head>
+<body>
+  <header><h1>編輯會議記錄：{{ meeting_name }}</h1></header>
+  <div id="auditbar"></div>
+  <main id="app"></main>
+  <div class="exportrow">
+    <label><input type="checkbox" id="reviewed"> 我已審閱本記錄</label>
+    <button id="exportbtn" disabled>匯出並開 Outlook</button>
+    <span id="status"></span>
+  </div>
+  <script>window.DATA = {{ data_json|safe }};</script>
+  <script>
+  (function(){
+    var D = window.DATA.synthesized;
+    if(!D.topics) D.topics = [];
+    if(!D.action_items) D.action_items = [];
+    var app=document.getElementById('app');
+    var reviewedCb=document.getElementById('reviewed');
+    var exportBtn=document.getElementById('exportbtn');
+    var statusEl=document.getElementById('status');
+
+    var MARKERS=["[待確認]","待確認","TODO","TBD","待補","待補充"];
+    function blank(s){return !(s||"").trim();}
+    function hasMarker(s){s=s||"";return MARKERS.some(function(m){return s.indexOf(m)>=0;});}
+
+    // Mirror of script/audit_mechanical.py — keep in sync with the Python source.
+    function evaluate(){
+      var T=D.topics, A=D.action_items, checks=[];
+      function chk(k,l,off){checks.push({key:k,label:l,passed:off.length===0,offending:off});}
+      var off;
+      off=[];A.forEach(function(a,i){if(blank(a.owner))off.push('A'+(i+1));});chk('action_owner_present','每個 Action 有負責人',off);
+      off=[];A.forEach(function(a,i){if(blank(a.due))off.push('A'+(i+1));});chk('action_due_present','每個 Action 有期限',off);
+      off=[];T.forEach(function(t,i){(t.decisions||[]).forEach(function(d,j){if(blank(d))off.push('T'+(i+1)+'.d'+(j+1));});});chk('decision_nonempty','每條決議非空',off);
+      off=[];T.forEach(function(t,i){if(blank(t.title))off.push('T'+(i+1));});chk('topic_title_nonempty','每個議題有標題',off);
+      off=[];T.forEach(function(t,i){if(blank(t.summary))off.push('T'+(i+1));});chk('topic_summary_nonempty','每個議題有摘要',off);
+      off=[];T.forEach(function(t,i){['title','summary'].forEach(function(f){if(hasMarker(t[f]))off.push('T'+(i+1)+'.'+f);});(t.decisions||[]).forEach(function(d,j){if(hasMarker(d))off.push('T'+(i+1)+'.d'+(j+1));});});
+      A.forEach(function(a,i){['task','owner','due','context'].forEach(function(f){if(hasMarker(a[f]))off.push('A'+(i+1)+'.'+f);});});chk('no_placeholder_markers','無殘留待確認 / TODO 標記',off);
+      return checks;
+    }
+    function allPass(c){return c.every(function(x){return x.passed;});}
+
+    function ce(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}
+    function bindEdit(el,setter){el.contentEditable='true';el.addEventListener('blur',function(){setter(el.textContent);refresh();});return el;}
+
+    function render(){
+      app.innerHTML='';
+      D.topics.forEach(function(t,ti){
+        var box=ce('article','topic');
+        box.appendChild(bindEdit(ce('h3','',t.title||''),function(v){t.title=v;}));
+        box.appendChild(bindEdit(ce('p','summary',t.summary||''),function(v){t.summary=v;}));
+        var dw=ce('div','decisions');dw.appendChild(ce('b','','■ 決議'));
+        var ul=ce('ul');
+        (t.decisions||[]).forEach(function(d,di){
+          var li=ce('li');
+          li.appendChild(bindEdit(ce('span','',d||''),function(v){t.decisions[di]=v;}));
+          var del=ce('button','mini','🗑');del.onclick=function(){t.decisions.splice(di,1);render();refresh();};
+          li.appendChild(del);ul.appendChild(li);
+        });
+        dw.appendChild(ul);
+        var addD=ce('button','mini','＋決議');addD.onclick=function(){t.decisions=t.decisions||[];t.decisions.push('');render();refresh();};
+        dw.appendChild(addD);box.appendChild(dw);
+        var delT=ce('button','mini','🗑 刪議題');delT.onclick=function(){D.topics.splice(ti,1);render();refresh();};
+        box.appendChild(delT);
+        app.appendChild(box);
+      });
+      var addT=ce('button','mini','＋議題');addT.onclick=function(){D.topics.push({title:'',summary:'',decisions:[]});render();refresh();};
+      app.appendChild(addT);
+
+      app.appendChild(ce('h2','','Action Items'));
+      var table=ce('table');var hr=ce('tr');
+      ['#','任務','負責人','期限','優先級',''].forEach(function(x){hr.appendChild(ce('th','',x));});
+      table.appendChild(hr);
+      D.action_items.forEach(function(a,ai){
+        var tr=ce('tr');
+        tr.appendChild(ce('td','',String(ai+1)));
+        ['task','owner','due','priority'].forEach(function(f){
+          var td=ce('td');td.textContent=a[f]||'';bindEdit(td,function(v){a[f]=v;});tr.appendChild(td);
+        });
+        var td=ce('td');var del=ce('button','mini','🗑');del.onclick=function(){D.action_items.splice(ai,1);render();refresh();};td.appendChild(del);tr.appendChild(td);
+        table.appendChild(tr);
+      });
+      app.appendChild(table);
+      var addA=ce('button','mini','＋Action');addA.onclick=function(){D.action_items.push({task:'',owner:'',due:'',priority:'medium'});render();refresh();};
+      app.appendChild(addA);
+    }
+
+    function refresh(){
+      var checks=evaluate();var pass=allPass(checks);
+      var bar=document.getElementById('auditbar');bar.innerHTML='';
+      checks.forEach(function(c){
+        bar.appendChild(ce('span',c.passed?'chip ok':'chip bad',(c.passed?'✅ ':'❌ ')+c.label+(c.offending.length?(' ('+c.offending.join(', ')+')'):'')));
+      });
+      (((window.DATA.audit||{}).semantic)||[]).forEach(function(s){
+        bar.appendChild(ce('span','chip sem','📋 '+s.label+'：'+s.score+'/5'));
+      });
+      exportBtn.disabled=!(pass&&reviewedCb.checked);
+    }
+
+    reviewedCb.addEventListener('change',refresh);
+    exportBtn.addEventListener('click',function(){
+      exportBtn.disabled=true;statusEl.textContent='匯出中…';
+      fetch('/export',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({synthesized:D,reviewed:reviewedCb.checked})})
+      .then(function(r){return r.json();})
+      .then(function(res){
+        if(res.ok){statusEl.textContent=res.outlook_opened?'✅ 已開啟 Outlook 草稿，email.html 已輸出。':'✅ email.html 已輸出；Outlook 未開，請手動開啟。';}
+        else{statusEl.textContent='❌ 匯出被擋：'+(res.reason||'')+(res.failing?(' — '+res.failing.map(function(f){return f.label;}).join('；')):'');}
+      })
+      .catch(function(e){statusEl.textContent='❌ 匯出失敗：'+e;})
+      .finally(function(){refresh();});
+    });
+
+    render();refresh();
+  }());
+  </script>
+</body>
+</html>

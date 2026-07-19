@@ -5,6 +5,7 @@ already-synthesized output, never the raw transcript).
 import json
 from pathlib import Path
 
+from jinja2 import Environment, FileSystemLoader
 from pydantic import ValidationError
 
 from script.schemas import SynthesizedMinutes, AuditResult
@@ -28,6 +29,19 @@ def load_data(out_dir) -> dict:
         "synthesized": json.loads(synth.model_dump_json()),
         "audit": json.loads(audit.model_dump_json()),
     }
+
+
+def render_edit_page(out_dir) -> str:
+    """Render the editable page with DATA embedded as UTF-8 JSON."""
+    data = load_data(out_dir)
+    # ensure_ascii=False keeps Chinese readable; the "</" -> "<\/" replace stops
+    # any "</script>" inside content from breaking out of the inline <script>.
+    data_json = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    env = Environment(loader=FileSystemLoader(str(_TEMPLATE_DIR)), autoescape=True)
+    return env.get_template("edit.html.j2").render(
+        data_json=data_json,
+        meeting_name=Path(out_dir).name,
+    )
 
 
 def handle_export(posted: dict, out_dir) -> dict:
