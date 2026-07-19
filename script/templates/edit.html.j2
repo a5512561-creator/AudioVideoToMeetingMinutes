@@ -39,7 +39,7 @@
     <button id="exportbtn" disabled>匯出並開 Outlook</button>
     <span id="status"></span>
   </div>
-  <script>window.DATA = {{ data_json|safe }};</script>
+  <script>{# data_json is a JSON literal already escaped for <script>; |safe is intentional #}window.DATA = {{ data_json|safe }};</script>
   <script>
   (function(){
     var D = window.DATA.synthesized;
@@ -59,8 +59,8 @@
       var T=D.topics, A=D.action_items, checks=[];
       function chk(k,l,off){checks.push({key:k,label:l,passed:off.length===0,offending:off});}
       var off;
-      off=[];A.forEach(function(a,i){if(blank(a.owner))off.push('A'+(i+1));});chk('action_owner_present','每個 Action 有負責人',off);
-      off=[];A.forEach(function(a,i){if(blank(a.due))off.push('A'+(i+1));});chk('action_due_present','每個 Action 有期限',off);
+      off=[];A.forEach(function(a,i){if(blank(a.owner))off.push('A'+(i+1));});chk('action_owner_present','每個 Action 有負責人（不得空）',off);
+      off=[];A.forEach(function(a,i){if(blank(a.due))off.push('A'+(i+1));});chk('action_due_present','每個 Action 有期限（不得空）',off);
       off=[];T.forEach(function(t,i){(t.decisions||[]).forEach(function(d,j){if(blank(d))off.push('T'+(i+1)+'.d'+(j+1));});});chk('decision_nonempty','每條決議非空',off);
       off=[];T.forEach(function(t,i){if(blank(t.title))off.push('T'+(i+1));});chk('topic_title_nonempty','每個議題有標題',off);
       off=[];T.forEach(function(t,i){if(blank(t.summary))off.push('T'+(i+1));});chk('topic_summary_nonempty','每個議題有摘要',off);
