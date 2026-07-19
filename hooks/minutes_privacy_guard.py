@@ -121,6 +121,12 @@ def main() -> int:
     even when the session cwd is the repo root and the lock lives in the meeting
     subfolder.
     """
+    for stream in (sys.stdin, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")  # py3.7+; harmless if unavailable
+        except (AttributeError, ValueError):
+            pass
+
     try:
         payload = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError):
@@ -138,7 +144,10 @@ def main() -> int:
 
     blocked, reason = should_block(tool_name, tool_input, lock, lock_dir)
     if blocked:
-        sys.stderr.write(reason)
+        try:
+            sys.stderr.write(reason)
+        except Exception:
+            pass  # a failed message must not turn a block (exit 2) into exit 1
         return 2
     return 0
 

@@ -120,3 +120,20 @@ def test_main_allows_when_no_lock(tmp_path, monkeypatch):
 def test_main_allows_unparseable_stdin(monkeypatch):
     monkeypatch.setattr("sys.stdin", io.StringIO("not json"))
     assert _guard.main() == 0
+
+
+def test_main_block_survives_stderr_write_failure(tmp_path, monkeypatch):
+    (tmp_path / "m.vtt").write_text("x", encoding="utf-8")
+    (tmp_path / ".minutes-company-lock.json").write_text(
+        _json.dumps({"protected": [str(tmp_path / "m.vtt")]}), encoding="utf-8")
+    payload = {"tool_name": "Read", "tool_input": {"file_path": str(tmp_path / "m.vtt")}}
+    monkeypatch.setattr("sys.stdin", io.StringIO(_json.dumps(payload)))
+
+    class _BoomWriter:
+        def write(self, s):
+            raise UnicodeEncodeError("utf-8", "", 0, 1, "boom")
+        def reconfigure(self, **k):
+            pass
+    monkeypatch.setattr("sys.stderr", _BoomWriter())
+    # even though writing the reason fails, the block must still exit 2
+    assert _guard.main() == 2
