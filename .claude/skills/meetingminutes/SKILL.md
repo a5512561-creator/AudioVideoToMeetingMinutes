@@ -36,6 +36,11 @@ The transcript and audio must NEVER be read by you (the cloud session).
    `python -m script.main process "<transcript path>" --name "<name>" --llm company`
 4. Everything (map/reduce/review/synth/audit) runs on the company endpoint. You
    never open the transcript; you only read command stdout.
+5. Open the editable page so the user can edit the minutes and export to Outlook:
+   `python -m script.main edit "<name>"`
+   The user edits topics / decisions / actions in the browser; the export button
+   unlocks only when the mechanical audit passes and they tick "已審閱", then it
+   writes email.html to the folder and opens an Outlook draft.
 
 ### If "claude" (Claude 目前的 LLM) — engine B
 
@@ -49,6 +54,8 @@ You are allowed to read the transcript. Do NOT create the lock file.
 3. Re-render + audit without calling any LLM:
    `python -m script.main process "<transcript path>" --name "<name>" --rerender`
    (The `--rerender` path recomputes the mechanical audit and re-renders HTML.)
+4. Open the editable page: `python -m script.main edit "<name>"` (same as the
+   company route — edit in the browser, then export to an Outlook draft).
 
 ## Notes
 - The CLI refuses a full run without `--llm` (backstop). The PreToolUse hook
