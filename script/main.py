@@ -1,3 +1,4 @@
+import sys
 from enum import Enum
 from pathlib import Path
 
@@ -6,6 +7,16 @@ from script.config import Settings
 from script.finalize import run_finalize
 from script.pipeline import run_pipeline
 from script.validate_source import validate_source
+
+# CLI output is Traditional Chinese + the occasional ✅/❌ emoji. On a legacy
+# Windows console (cp950) the emoji raises UnicodeEncodeError and crashes the
+# command mid-print. Force UTF-8 on stdout/stderr so output never crashes on the
+# console codepage (best-effort — a no-op where reconfigure is unavailable).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
 
 
 class LlmChoice(str, Enum):
