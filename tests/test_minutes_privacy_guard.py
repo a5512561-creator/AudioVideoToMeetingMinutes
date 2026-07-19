@@ -77,3 +77,15 @@ def test_wildcard_lock_blocks_reads():
     assert blocked is True
     blocked2, _ = should_block("Grep", {"path": "/x"}, {"protected": ["*"]})
     assert blocked2 is True
+
+
+def test_dotdot_path_cannot_bypass_block():
+    lock = {"protected": ["/proj/mtg/mtg.vtt"]}
+    blocked, _ = should_block("Read", {"file_path": "/proj/mtg/z/../mtg.vtt"}, lock)
+    assert blocked is True
+
+
+def test_dotdot_via_grep_path_blocked():
+    lock = {"protected": ["/proj/mtg/mtg.vtt"]}
+    blocked, _ = should_block("Grep", {"path": "/proj/mtg/sub/../mtg.vtt"}, lock)
+    assert blocked is True

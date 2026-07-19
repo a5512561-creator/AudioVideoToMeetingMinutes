@@ -13,6 +13,7 @@ block, plus the company-mode skill asking the user first. Do not rely on the
 Bash scan as a security boundary.
 """
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -28,11 +29,20 @@ def _norm(p: str) -> str:
 
 
 def _resolve(path: str, base_dir=None) -> str:
-    """Absolute-normalise `path`; if relative and base_dir given, resolve against it."""
-    p = Path(path)
+    """Canonical, comparable form of a path.
+
+    Anchors a relative path against base_dir, then collapses `..` and resolves
+    symlinks so two spellings of the same file compare equal (closes the
+    `a/../b` bypass). Falls back to lexical normpath for paths that can't be
+    resolved (e.g. don't exist on this machine)."""
+    p = Path(path or "")
     if not p.is_absolute() and base_dir is not None:
         p = Path(base_dir) / p
-    return _norm(str(p))
+    try:
+        p = p.resolve()
+    except (OSError, RuntimeError, ValueError):
+        p = Path(os.path.normpath(str(p)))
+    return str(p).replace("\\", "/").casefold()
 
 
 def find_lock(start_dir):
