@@ -39,6 +39,9 @@ def handle_export(posted: dict, out_dir) -> dict:
     marked reviewed.
     """
     out_dir = Path(out_dir)
+    if not isinstance(posted, dict):
+        return {"ok": False, "reason": "invalid_payload",
+                "detail": "expected a JSON object"}
     try:
         synth = SynthesizedMinutes.model_validate(posted.get("synthesized", {}))
     except ValidationError as e:
@@ -62,7 +65,7 @@ def handle_export(posted: dict, out_dir) -> dict:
     (inter / "synthesized.json").write_text(synth.model_dump_json(), encoding="utf-8")
 
     subject = out_dir.name
-    meta = synth.meta or empty_meta()
+    meta = synth.meta if synth.meta is not None else empty_meta()
     final = synth_to_finalized(synth, subject=subject, meta=meta)
     email_html = render_email_html(final)
     email_path = out_dir / "email.html"

@@ -57,6 +57,16 @@ def test_export_blocked_when_not_reviewed(tmp_path, monkeypatch):
     assert r["ok"] is False
     assert r["reason"] == "not_reviewed"
     assert not (out / "email.html").exists()
+    assert not (out / "intermediate" / "synthesized.json").exists()
+
+
+def test_export_rejects_non_dict_payload(tmp_path):
+    out = tmp_path / "mtg"
+    (out / "intermediate").mkdir(parents=True)
+    r = handle_export([], out)
+    assert r["ok"] is False
+    assert r["reason"] == "invalid_payload"
+    assert not (out / "email.html").exists()
 
 
 def test_export_outlook_unavailable_still_writes_email(tmp_path, monkeypatch):
