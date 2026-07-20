@@ -185,3 +185,25 @@ def test_server_export_failure_returns_422(tmp_path, monkeypatch):
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+def test_registry_round_trip(tmp_path):
+    from script.edit_server import read_registry, write_registry, clear_registry
+    out = tmp_path / "mtg"
+    out.mkdir()
+    assert read_registry(out) is None                 # absent -> None
+    write_registry(out, pid=4242, port=54321)
+    reg = read_registry(out)
+    assert reg == {"pid": 4242, "port": 54321, "name": "mtg"}
+    assert (out / ".edit-server.json").exists()
+    clear_registry(out)
+    assert read_registry(out) is None                 # cleared -> None
+    clear_registry(out)                               # idempotent, no raise
+
+
+def test_registry_corrupt_reads_as_none(tmp_path):
+    from script.edit_server import read_registry
+    out = tmp_path / "mtg"
+    out.mkdir()
+    (out / ".edit-server.json").write_text("{not json", encoding="utf-8")
+    assert read_registry(out) is None

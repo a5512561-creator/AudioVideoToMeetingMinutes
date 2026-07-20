@@ -3,6 +3,7 @@ export to an Outlook draft. Binds 127.0.0.1 only; runs no LLM (it edits the
 already-synthesized output, never the raw transcript).
 """
 import json
+import os
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -17,6 +18,35 @@ from script.outlook_draft import open_draft
 from script.meeting_meta import empty_meta
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
+_REGISTRY_NAME = ".edit-server.json"
+
+
+def read_registry(out_dir) -> dict | None:
+    """Return the {pid, port, name} sidecar dict for out_dir, or None if it is
+    absent or unreadable (corrupt JSON is treated as absent, never raised)."""
+    p = Path(out_dir) / _REGISTRY_NAME
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def write_registry(out_dir, pid: int, port: int) -> None:
+    """Record the currently-serving process for out_dir."""
+    out_dir = Path(out_dir)
+    (out_dir / _REGISTRY_NAME).write_text(
+        json.dumps({"pid": pid, "port": port, "name": out_dir.name}),
+        encoding="utf-8")
+
+
+def clear_registry(out_dir) -> None:
+    """Delete the registry sidecar (best-effort; missing file is fine)."""
+    try:
+        (Path(out_dir) / _REGISTRY_NAME).unlink()
+    except OSError:
+        pass
 
 
 def load_data(out_dir) -> dict:
