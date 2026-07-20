@@ -214,15 +214,30 @@ def build_server(out_dir, port: int = 0) -> ThreadingHTTPServer:
 
 
 def serve(out_dir, *, open_browser: bool = True, port: int = 0) -> None:
-    """Run the editable server until Ctrl-C. Localhost-only."""
+    """Run the editable server until Ctrl-C or a successful export. Localhost-only.
+
+    Reuses an already-live server for this meeting instead of binding a
+    duplicate; records itself in the registry while serving and clears it on
+    teardown."""
+    out_dir = Path(out_dir)
+    existing = existing_live_url(out_dir)
+    if existing:
+        print(f"已有編輯 server 在跑：{existing}（重用，未開新）")
+        if open_browser:
+            webbrowser.open(existing)
+        return
+
     httpd = build_server(out_dir, port)
-    url = f"http://127.0.0.1:{httpd.server_address[1]}/"
+    bound_port = httpd.server_address[1]
+    url = f"http://127.0.0.1:{bound_port}/"
+    write_registry(out_dir, os.getpid(), bound_port)
     if open_browser:
         webbrowser.open(url)
-    print(f"編輯頁：{url}  （編輯完在頁面上匯出；Ctrl-C 結束）")
+    print(f"編輯頁：{url}  （匯出成功後 server 自動關閉；Ctrl-C 亦可結束）")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
         httpd.server_close()
+        clear_registry(out_dir)

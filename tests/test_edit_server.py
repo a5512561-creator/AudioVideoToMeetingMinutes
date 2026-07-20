@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 from script.schemas import SynthesizedMinutes, SynthTopic, SynthAction
@@ -252,6 +253,50 @@ def test_existing_live_url_none_and_clears_when_dead(tmp_path, monkeypatch):
     monkeypatch.setattr(edit_server, "_ping_ok", lambda port, name: False)  # dead / wrong
     assert edit_server.existing_live_url(out) is None
     assert edit_server.read_registry(out) is None            # stale registry cleared
+
+
+def test_serve_reuses_live_server_without_binding(tmp_path, monkeypatch):
+    from script import edit_server
+    out = tmp_path / "mtg"
+    out.mkdir()
+    monkeypatch.setattr(edit_server, "existing_live_url",
+                        lambda o: "http://127.0.0.1:7777/")
+    opened = {}
+    monkeypatch.setattr(edit_server.webbrowser, "open",
+                        lambda u: opened.update(url=u))
+    # If serve tried to bind a real server it would call build_server; fail loudly.
+    monkeypatch.setattr(edit_server, "build_server",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not bind")))
+
+    edit_server.serve(out, open_browser=True)          # returns immediately
+
+    assert opened["url"] == "http://127.0.0.1:7777/"
+
+
+def test_serve_fresh_writes_registry_during_serve_and_clears_after(tmp_path, monkeypatch):
+    from script import edit_server
+    out = tmp_path / "mtg"
+    out.mkdir()
+    monkeypatch.setattr(edit_server, "existing_live_url", lambda o: None)
+    monkeypatch.setattr(edit_server.webbrowser, "open", lambda u: None)
+
+    seen = {}
+
+    class _FakeHttpd:
+        server_address = ("127.0.0.1", 8123)
+        def serve_forever(self):
+            # registry must exist *while* the server is running
+            seen["during"] = edit_server.read_registry(out)
+        def server_close(self):
+            seen["closed"] = True
+
+    monkeypatch.setattr(edit_server, "build_server", lambda o, port=0: _FakeHttpd())
+
+    edit_server.serve(out, open_browser=False)
+
+    assert seen["during"] == {"pid": os.getpid(), "port": 8123, "name": "mtg"}
+    assert seen["closed"] is True
+    assert edit_server.read_registry(out) is None      # cleared in finally
 
 
 def test_existing_live_url_none_when_no_registry(tmp_path):
