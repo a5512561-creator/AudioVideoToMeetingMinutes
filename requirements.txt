@@ -20,3 +20,8 @@ python-dotenv>=1.0.0
 tiktoken>=0.7.0
 # Outlook draft creation (finalize command); Windows COM via pywin32.
 pywin32>=306; sys_platform == "win32"
+# Browser E2E: headless Chromium plays every audio clip to confirm real
+# playback (script/audio_e2e_playwright.py). Optional — the module skips
+# gracefully when playwright/chromium isn't installed. Run once after install:
+#   python -m playwright install chromium
+playwright>=1.40,<2.0
