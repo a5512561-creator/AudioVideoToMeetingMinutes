@@ -3,6 +3,7 @@ references 10-second clips by RELATIVE path, plus the clip files. Relative
 refs work once the zip is unzipped locally (unlike the SharePoint-viewer case
 that needs data: URLs)."""
 import json
+import shutil
 import zipfile
 from pathlib import Path
 
@@ -70,3 +71,18 @@ def build_audio_zip(synth, out_dir, *, pre_seconds: int, duration: int):
         for name in cut_map.values():
             z.write(out_dir / name, arcname=name)
     return zip_path
+
+
+def place_outputs(out_dir, dest_dir, names) -> list[str]:
+    """Copy the named output files from out_dir into dest_dir (skipping any that
+    don't exist). Returns the names actually copied. Used to co-locate email.html
+    + minutes_audio.zip next to the transcript for SharePoint upload."""
+    out_dir, dest_dir = Path(out_dir), Path(dest_dir)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    copied = []
+    for n in names:
+        src = out_dir / n
+        if src.exists():
+            shutil.copy2(src, dest_dir / n)
+            copied.append(n)
+    return copied

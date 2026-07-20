@@ -47,3 +47,28 @@ def test_build_audio_zip_no_audio_returns_none(tmp_path):
     out = tmp_path / "mtg"
     out.mkdir()  # no audio.* present
     assert build_audio_zip(_synth(), out, pre_seconds=5, duration=10) is None
+
+
+def test_place_outputs_copies_present_files(tmp_path):
+    from script.audio_zip import place_outputs
+    out = tmp_path / "out" / "t"
+    out.mkdir(parents=True)
+    (out / "email.html").write_text("E", encoding="utf-8")
+    (out / "minutes_audio.zip").write_bytes(b"Z")
+    dest = tmp_path / "src" / "mtg"
+    dest.mkdir(parents=True)
+    copied = place_outputs(out, dest, ["email.html", "minutes_audio.zip"])
+    assert (dest / "email.html").read_text(encoding="utf-8") == "E"
+    assert (dest / "minutes_audio.zip").read_bytes() == b"Z"
+    assert set(copied) == {"email.html", "minutes_audio.zip"}
+
+
+def test_place_outputs_skips_missing(tmp_path):
+    from script.audio_zip import place_outputs
+    out = tmp_path / "out" / "t"
+    out.mkdir(parents=True)
+    (out / "email.html").write_text("E", encoding="utf-8")
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    copied = place_outputs(out, dest, ["email.html", "minutes_audio.zip"])
+    assert copied == ["email.html"]  # zip absent -> skipped

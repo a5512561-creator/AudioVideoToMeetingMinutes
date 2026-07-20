@@ -127,6 +127,59 @@ def edit(
 
 
 @app.command()
+def audiozip(
+    src: str = typer.Argument(..., help="Transcript path (preferred — outputs co-locate next to it) or an out/<name> folder name."),
+    name: str | None = typer.Option(None, "--name", help="Output folder name (defaults to src basename)."),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Skip the Playwright browser E2E (ffprobe audibility check only)."),
+) -> None:
+    """Build minutes_audio.zip (clips + relative-ref HTML), verify every clip
+    plays, then co-locate email.html + the zip next to the transcript."""
+    from script.audio_zip import build_audio_zip, place_outputs
+    from script.audio_verify import verify_zip
+    from script.email_writer import synth_to_finalized, render_email_html
+    from script.meeting_meta import empty_meta
+    from script.schemas import SynthesizedMinutes
+    settings = Settings()
+    base = name or Path(src).stem
+    out_dir = Path(settings.out_dir) / base
+    synth_path = out_dir / "intermediate" / "synthesized.json"
+    if not synth_path.exists():
+        typer.echo(f"找不到 {synth_path} — 請先跑 process 產生綜整結果。")
+        raise typer.Exit(code=1)
+    synth = SynthesizedMinutes.model_validate_json(synth_path.read_text(encoding="utf-8"))
+
+    zip_path = build_audio_zip(
+        synth, out_dir,
+        pre_seconds=settings.audio_clip_pre_seconds,
+        duration=settings.audio_clip_duration_seconds)
+    if zip_path is None:
+        typer.echo("此會議資料夾沒有同名音檔，無法產生音檔 zip。")
+        raise typer.Exit(code=1)
+
+    result = verify_zip(zip_path, run_browser=not no_browser)
+    if not result["ok"]:
+        typer.echo(f"❌ 音檔 zip 驗證未過（stage={result.get('stage')}）："
+                   f"silent={result.get('silent')} "
+                   f"failed={result.get('browser', {}).get('failed')} "
+                   f"保留暫存={result.get('temp_dir')}")
+        raise typer.Exit(code=1)
+
+    # Plain email.html (no audio) from the current synthesized minutes.
+    final = synth_to_finalized(synth, subject=base, meta=synth.meta or empty_meta())
+    (out_dir / "email.html").write_text(render_email_html(final), encoding="utf-8")
+
+    outputs = ["email.html", "minutes_audio.zip"]
+    src_dir = Path(src).parent
+    if str(src_dir) not in ("", ".") and src_dir.exists() and src_dir.resolve() != out_dir.resolve():
+        copied = place_outputs(out_dir, src_dir, outputs)
+        typer.echo(f"✅ 驗證通過（每條音檔可播放）。已放到逐字稿目錄 {src_dir}：{', '.join(copied)}")
+    else:
+        typer.echo(f"✅ 驗證通過（每條音檔可播放）。輸出在 {out_dir}："
+                   f"{', '.join(outputs)}（未給逐字稿路徑，故未 co-locate — "
+                   f"用 `audiozip <逐字稿路徑>` 可自動放到會議資料夾）")
+
+
+@app.command()
 def finalize(
     src: str = typer.Argument(..., help="Transcript path or existing output folder name (used to locate out/<name>)."),
     name: str | None = typer.Option(None, "--name", help="Output folder name (defaults to src basename)."),
