@@ -232,3 +232,38 @@ def test_ping_returns_app_and_meeting_marker(tmp_path):
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+def test_existing_live_url_returns_url_on_matching_ping(tmp_path, monkeypatch):
+    from script import edit_server
+    out = tmp_path / "mtg"
+    out.mkdir()
+    edit_server.write_registry(out, pid=1, port=6001)
+    monkeypatch.setattr(edit_server, "_ping_ok",
+                        lambda port, name: port == 6001 and name == "mtg")
+    assert edit_server.existing_live_url(out) == "http://127.0.0.1:6001/"
+
+
+def test_existing_live_url_none_and_clears_when_dead(tmp_path, monkeypatch):
+    from script import edit_server
+    out = tmp_path / "mtg"
+    out.mkdir()
+    edit_server.write_registry(out, pid=1, port=6002)
+    monkeypatch.setattr(edit_server, "_ping_ok", lambda port, name: False)  # dead / wrong
+    assert edit_server.existing_live_url(out) is None
+    assert edit_server.read_registry(out) is None            # stale registry cleared
+
+
+def test_existing_live_url_none_when_no_registry(tmp_path):
+    from script import edit_server
+    out = tmp_path / "mtg"
+    out.mkdir()
+    assert edit_server.existing_live_url(out) is None
+
+
+def test_ping_ok_false_on_connection_error(monkeypatch):
+    from script import edit_server
+    def boom(*a, **k):
+        raise OSError("connection refused")
+    monkeypatch.setattr("urllib.request.urlopen", boom)
+    assert edit_server._ping_ok(59999, "mtg") is False

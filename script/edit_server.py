@@ -4,6 +4,7 @@ already-synthesized output, never the raw transcript).
 """
 import json
 import os
+import urllib.request
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -47,6 +48,39 @@ def clear_registry(out_dir) -> None:
         (Path(out_dir) / _REGISTRY_NAME).unlink()
     except OSError:
         pass
+
+
+def _ping_ok(port: int, name: str) -> bool:
+    """True if 127.0.0.1:port answers /ping as our server for this meeting.
+
+    Any error (refused, timeout, wrong/garbled marker) is a clean False — an
+    HTTP probe both proves liveness and confirms the port was not reused by
+    some unrelated process, which a bare pid check cannot (and on Windows a
+    pid check risks TerminateProcess)."""
+    try:
+        with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/ping", timeout=1) as r:
+            data = json.loads(r.read().decode("utf-8"))
+    except Exception:
+        return False
+    return data.get("app") == "minutes-edit" and data.get("name") == name
+
+
+def existing_live_url(out_dir) -> str | None:
+    """Return the URL of a live server already serving out_dir, or None.
+
+    Reads the registry; if it points at a server that answers /ping for this
+    meeting, returns its URL. Otherwise deletes the stale registry and returns
+    None (so the caller starts a fresh server)."""
+    reg = read_registry(out_dir)
+    if not reg:
+        return None
+    port = reg.get("port")
+    name = Path(out_dir).name
+    if isinstance(port, int) and _ping_ok(port, name):
+        return f"http://127.0.0.1:{port}/"
+    clear_registry(out_dir)
+    return None
 
 
 def load_data(out_dir) -> dict:
