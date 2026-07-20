@@ -117,6 +117,26 @@ def test_main_allows_when_no_lock(tmp_path, monkeypatch):
     assert _guard.main() == 0
 
 
+def test_command_path_dirs_recognises_video_recording():
+    # A Teams .mp4 token must be treated as path-ish so the lock beside it is
+    # discovered even when it is the only path in the command.
+    dirs = _guard._command_path_dirs("do-something 會議.mp4 --flag")
+    assert any(Path(d) == Path("會議.mp4").parent for d in dirs)
+
+
+def test_main_blocks_bash_touching_protected_mp4(tmp_path, monkeypatch, capsys):
+    mp4 = tmp_path / "會議.mp4"
+    mp4.write_bytes(b"video")
+    (tmp_path / ".minutes-company-lock.json").write_text(
+        _json.dumps({"protected": [str(mp4)]}), encoding="utf-8")
+    payload = {"tool_name": "Bash",
+               "tool_input": {"command": f'ffmpeg -i "{mp4}" out.m4a'}}
+    monkeypatch.setattr("sys.stdin", io.StringIO(_json.dumps(payload)))
+    monkeypatch.chdir(tmp_path)
+    assert _guard.main() == 2
+    assert "隱私" in capsys.readouterr().err
+
+
 def test_main_allows_unparseable_stdin(monkeypatch):
     monkeypatch.setattr("sys.stdin", io.StringIO("not json"))
     assert _guard.main() == 0

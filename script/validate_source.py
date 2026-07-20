@@ -10,7 +10,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from script.audio_assets import find_sibling_audio
+from script.audio_assets import find_sibling_media
 
 # Plain Android-Recorder style: MM:SS or HH:MM:SS at line start (optionally bracketed).
 _TS_PLAIN = re.compile(r"^\s*\[?(\d{1,2}:\d{2}(?::\d{2})?)\b")
@@ -81,7 +81,7 @@ def validate_source(src: str) -> SourceReport:
     if report.timestamp_lines < _MIN_TIMESTAMP_LINES:
         problems.append("找不到任何時間戳（MM:SS / HH:MM:SS）— 格式可能不正確")
 
-    audio = find_sibling_audio(src)
+    audio = find_sibling_media(src)
     if audio is not None:
         report.has_sibling_audio = True
         report.audio_ext = audio.suffix.lower()

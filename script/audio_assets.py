@@ -15,6 +15,13 @@ from pathlib import Path
 
 _AUDIO_EXTS = (".m4a", ".mp3", ".wav", ".ogg", ".aac")
 
+# Video containers we can pull an audio track out of. Teams / Zoom exports are
+# .mp4; kept separate from _AUDIO_EXTS because these need an ffmpeg extraction
+# (``extract_audio_track``), not a plain copy — copying a multi-hundred-MB
+# recording just to cut a few audio clips wastes space, and the clip player
+# only ever needs the audio.
+_VIDEO_EXTS = (".mp4", ".mov", ".mkv")
+
 _MIME_BY_EXT = {
     ".m4a": "audio/mp4",
     ".mp3": "audio/mpeg",
@@ -53,6 +60,70 @@ def find_sibling_audio(src: str) -> Path | None:
         if cand.exists():
             return cand
     return None
+
+
+def is_video_container(path) -> bool:
+    """True when ``path`` has a video-container extension we can extract audio
+    from (case-insensitive)."""
+    return Path(path).suffix.lower() in _VIDEO_EXTS
+
+
+def find_sibling_media(src: str) -> Path | None:
+    """Return the same-stem media file next to ``src``: a playable audio file
+    if present, otherwise a video container we can extract audio from.
+
+    Audio is preferred over video (audio needs only a copy; video needs an
+    ffmpeg extraction), and within each group the fixed extension order wins.
+    None if neither exists.
+    """
+    p = Path(src)
+    for ext in (*_AUDIO_EXTS, *_VIDEO_EXTS):
+        cand = p.with_suffix(ext)
+        if cand.exists():
+            return cand
+    return None
+
+
+def extract_audio_track(video_path, dst) -> bool:
+    """Extract the audio track from a video container into ``dst`` (an .m4a).
+
+    Tries a stream copy first (``-vn -c:a copy``): Teams / Zoom .mp4 audio is
+    already AAC, so this is lossless, near-instant, and avoids rewriting the
+    (large) video. Falls back to a re-encode (``-c:a aac``) when the source
+    codec is not MP4-compatible. Returns True on success, False on failure or
+    when ffmpeg is missing from PATH.
+    """
+    video_path = Path(video_path)
+    dst = Path(dst)
+
+    # ffmpeg can exit rc=0 having written only the m4a container header (~44
+    # bytes, no audio) — the same failure mode cut_clips guards against. Treat
+    # anything that small as a failed copy so the re-encode fallback runs.
+    _MIN_REAL_AUDIO_BYTES = 1024
+
+    def _run(codec_args) -> bool:
+        cmd = [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-i", str(video_path),
+            "-vn", *codec_args, "-map", "0:a:0",
+            str(dst),
+        ]
+        try:
+            cp = subprocess.run(cmd, capture_output=True, timeout=300)
+        except FileNotFoundError:
+            raise
+        except (subprocess.TimeoutExpired, OSError):
+            return False
+        return (
+            cp.returncode == 0
+            and dst.exists()
+            and dst.stat().st_size >= _MIN_REAL_AUDIO_BYTES
+        )
+
+    try:
+        return _run(["-c:a", "copy"]) or _run(["-c:a", "aac", "-b:a", "128k"])
+    except FileNotFoundError:
+        return False
 
 
 def clip_start(ts: str, pre: int) -> int | None:

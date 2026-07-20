@@ -2,7 +2,10 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from script.audio_assets import find_sibling_audio, clip_start, output_audio, cut_clips
+from script.audio_assets import (
+    find_sibling_audio, clip_start, output_audio, cut_clips,
+    find_sibling_media, is_video_container, extract_audio_track,
+)
 
 
 def test_find_sibling_prefers_extension_order(tmp_path):
@@ -29,6 +32,110 @@ def test_find_sibling_ignores_different_stem(tmp_path):
     (tmp_path / "mtg.txt").write_text("x", encoding="utf-8")
     (tmp_path / "other.m4a").write_text("a", encoding="utf-8")
     assert find_sibling_audio(str(tmp_path / "mtg.txt")) is None
+
+
+# ── sibling media discovery (audio + video containers) ──────────────────────
+
+def test_find_sibling_media_prefers_audio_over_video(tmp_path):
+    (tmp_path / "mtg.txt").write_text("x", encoding="utf-8")
+    (tmp_path / "mtg.mp4").write_bytes(b"video")
+    (tmp_path / "mtg.m4a").write_bytes(b"audio")
+    got = find_sibling_media(str(tmp_path / "mtg.txt"))
+    assert got is not None and got.name == "mtg.m4a"  # audio wins over video
+
+
+def test_find_sibling_media_finds_mp4(tmp_path):
+    (tmp_path / "會議.txt").write_text("x", encoding="utf-8")
+    (tmp_path / "會議.mp4").write_bytes(b"video")  # Teams recording
+    got = find_sibling_media(str(tmp_path / "會議.txt"))
+    assert got is not None and got.name == "會議.mp4"
+
+
+def test_find_sibling_media_none_when_absent(tmp_path):
+    (tmp_path / "mtg.txt").write_text("x", encoding="utf-8")
+    assert find_sibling_media(str(tmp_path / "mtg.txt")) is None
+
+
+def test_find_sibling_audio_still_ignores_video(tmp_path):
+    # find_sibling_audio stays audio-only; video is find_sibling_media's job.
+    (tmp_path / "mtg.txt").write_text("x", encoding="utf-8")
+    (tmp_path / "mtg.mp4").write_bytes(b"video")
+    assert find_sibling_audio(str(tmp_path / "mtg.txt")) is None
+
+
+def test_is_video_container():
+    assert is_video_container(Path("a.mp4")) is True
+    assert is_video_container(Path("a.MP4")) is True  # case-insensitive
+    assert is_video_container(Path("a.m4a")) is False
+    assert is_video_container(Path("a.wav")) is False
+
+
+def _fake_extract_run(dst_index: int, fail_on_copy: bool = False):
+    """subprocess.run replacement for extract_audio_track. Writes a non-empty
+    dst and returns rc=0, unless fail_on_copy and the command is a stream copy
+    (``-c:a copy``), in which case it returns rc=1 without writing."""
+    def _run(cmd, **kw):
+        if fail_on_copy and "copy" in cmd:
+            return MagicMock(returncode=1, stdout=b"", stderr=b"cannot copy")
+        Path(cmd[dst_index]).write_bytes(b"AUDIO" * 300)
+        return MagicMock(returncode=0, stdout=b"", stderr=b"")
+    return _run
+
+
+@patch("script.audio_assets.subprocess.run", side_effect=_fake_extract_run(-1))
+def test_extract_audio_track_stream_copy_success(run_m, tmp_path):
+    video = tmp_path / "會議.mp4"
+    video.write_bytes(b"VIDEO")
+    dst = tmp_path / "audio.m4a"
+    assert extract_audio_track(video, dst) is True
+    assert dst.exists() and dst.stat().st_size > 0
+    # Only one ffmpeg call: the stream copy succeeded, no re-encode fallback.
+    assert run_m.call_count == 1
+    assert "copy" in run_m.call_args_list[0].args[0]
+
+
+@patch("script.audio_assets.subprocess.run",
+       side_effect=_fake_extract_run(-1, fail_on_copy=True))
+def test_extract_audio_track_reencode_fallback(run_m, tmp_path):
+    video = tmp_path / "會議.mp4"
+    video.write_bytes(b"VIDEO")
+    dst = tmp_path / "audio.m4a"
+    assert extract_audio_track(video, dst) is True
+    # copy attempt failed, re-encode attempt succeeded → two calls.
+    assert run_m.call_count == 2
+    assert "aac" in run_m.call_args_list[1].args[0]
+
+
+def _fake_extract_run_copy_container_only(dst_index: int):
+    """Stream copy returns rc=0 but writes only a 44-byte container header
+    (ffmpeg's silent-fail mode); re-encode writes a real file."""
+    def _run(cmd, **kw):
+        if "copy" in cmd:
+            Path(cmd[dst_index]).write_bytes(b"\x00" * 44)  # container-only
+            return MagicMock(returncode=0, stdout=b"", stderr=b"")
+        Path(cmd[dst_index]).write_bytes(b"AUDIO" * 300)  # real re-encode
+        return MagicMock(returncode=0, stdout=b"", stderr=b"")
+    return _run
+
+
+@patch("script.audio_assets.subprocess.run",
+       side_effect=_fake_extract_run_copy_container_only(-1))
+def test_extract_audio_track_rejects_container_only_copy(run_m, tmp_path):
+    video = tmp_path / "會議.mp4"
+    video.write_bytes(b"VIDEO")
+    dst = tmp_path / "audio.m4a"
+    # copy produced a 44-byte header → rejected → re-encode fallback succeeds.
+    assert extract_audio_track(video, dst) is True
+    assert run_m.call_count == 2
+    assert dst.stat().st_size >= 1024
+
+
+@patch("script.audio_assets.subprocess.run",
+       side_effect=FileNotFoundError("ffmpeg not on PATH"))
+def test_extract_audio_track_missing_ffmpeg_returns_false(run_m, tmp_path):
+    video = tmp_path / "會議.mp4"
+    video.write_bytes(b"VIDEO")
+    assert extract_audio_track(video, tmp_path / "audio.m4a") is False
 
 
 def test_clip_start_hhmmss_minus_pre():

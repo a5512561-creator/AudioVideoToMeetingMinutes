@@ -30,6 +30,11 @@ The transcript and audio must NEVER be read by you (the cloud session).
    Determine the paths from a directory listing (listing a folder is allowed) —
    do NOT open the files. Absolute paths are required so the hook matches them
    regardless of how a later tool call spells the path.
+   The "audio" is whatever same-stem recording sits next to the transcript: a
+   plain audio file (`.m4a/.mp3/.wav/.ogg/.aac`) OR a video container
+   (`.mp4/.mov/.mkv` — Teams/Zoom exports). List that recording in the lock.
+   The pipeline auto-extracts the audio track from a video (never copies the
+   whole video), so a Teams `.mp4` yields the ▶ clips just like an `.m4a`.
 2. Run the LLM-free readiness check and read only its metadata output:
    `python -m script.main validate "<transcript path>"`
 3. If it reports OK, run the on-prem pipeline:
@@ -64,3 +69,7 @@ You are allowed to read the transcript. Do NOT create the lock file.
   directory is the repo root and the meeting folder is elsewhere. This skill
   asking first is the primary gate. All three must agree before confidential
   content moves.
+- The ▶ audio clips (audio extraction from `.mp4` and per-anchor cutting) need
+  `ffmpeg` on PATH. Without it the minutes still generate fully; only the clips
+  are skipped (`stage.audio_asset` warns / `audio_clips count=0`). If clips are
+  wanted and missing, check `ffmpeg -version` first.

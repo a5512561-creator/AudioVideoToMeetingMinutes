@@ -26,7 +26,8 @@ _READ_TOOLS = ("Read", "Grep", "Glob")
 # Tokens in a shell command that look like file paths — used to discover a
 # lock that lives beside a referenced file (Bash cwd alone is not enough).
 _CMD_TOKEN_RE = re.compile(r"""[^\s"'|&;<>()]+""")
-_PATHISH_EXT = (".vtt", ".txt", ".md", ".m4a", ".mp3", ".wav", ".ogg", ".aac")
+_PATHISH_EXT = (".vtt", ".txt", ".md", ".m4a", ".mp3", ".wav", ".ogg", ".aac",
+                ".mp4", ".mov", ".mkv")  # video recordings count as protected media
 
 
 def _command_path_dirs(cmd: str) -> list[str]:

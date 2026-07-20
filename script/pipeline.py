@@ -21,7 +21,8 @@ from script.schemas import AuditResult
 from script.email_writer import write_email_html, synth_to_finalized
 from script.meeting_meta import infer_meeting_date, duration_hint, empty_meta
 from script.audio_assets import (
-    find_sibling_audio, output_audio, clip_start, cut_clips, file_to_data_url,
+    find_sibling_media, is_video_container, extract_audio_track,
+    output_audio, clip_start, cut_clips, file_to_data_url,
 )
 from script.transcript_corrector import correct_transcript
 from script.agents.corrector_agent import CorrectorAgent
@@ -345,17 +346,27 @@ def run_pipeline(
            tokens_out=total["completion_tokens"],
            cost=f"{cost:.4f}", currency=settings.llm_currency)
 
-    # Copy sibling audio (same folder + stem as src) for minutes.html ▶
-    _audio = find_sibling_audio(src)
-    if _audio is not None:
+    # Stage sibling media (same folder + stem as src) for minutes.html ▶.
+    # Plain audio is copied as-is; a video container (Teams/Zoom .mp4) has its
+    # audio track extracted to audio.m4a so we never copy the whole recording.
+    _media = find_sibling_media(src)
+    if _media is None:
+        log_kv(logger, "INFO", "stage.audio_asset", status="missing")
+    elif is_video_container(_media):
+        _audio_dst = out_dir / "audio.m4a"
+        if extract_audio_track(_media, _audio_dst):
+            log_kv(logger, "INFO", "stage.audio_asset",
+                   extracted=str(_audio_dst), source=_media.suffix.lower())
+        else:
+            log_kv(logger, "WARNING", "stage.audio_asset",
+                   error="audio-track extraction failed", source=str(_media))
+    else:
         try:
-            _audio_dst = out_dir / ("audio" + _audio.suffix.lower())
-            shutil.copyfile(str(_audio), str(_audio_dst))
+            _audio_dst = out_dir / ("audio" + _media.suffix.lower())
+            shutil.copyfile(str(_media), str(_audio_dst))
             log_kv(logger, "INFO", "stage.audio_asset", copied=str(_audio_dst))
         except OSError as e:
             log_kv(logger, "WARNING", "stage.audio_asset", error=str(e))
-    else:
-        log_kv(logger, "INFO", "stage.audio_asset", status="missing")
 
     clips = _cut_audio_clips(out_dir, synth, settings)
     log_kv(logger, "INFO", "stage.audio_clips", count=len(clips))
