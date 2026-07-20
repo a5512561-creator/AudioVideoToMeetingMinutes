@@ -134,11 +134,15 @@
         body:JSON.stringify({synthesized:D,reviewed:reviewedCb.checked})})
       .then(function(r){return r.json();})
       .then(function(res){
-        if(res.ok){statusEl.textContent=res.outlook_opened?'✅ 已開啟 Outlook 草稿，email.html 已輸出。':'✅ email.html 已輸出；Outlook 未開，請手動開啟。';}
+        if(res.ok){
+          var base=res.outlook_opened?'✅ 已開啟 Outlook 草稿，email.html 已輸出。':'✅ email.html 已輸出；Outlook 未開，請手動開啟。';
+          statusEl.textContent=base+(res.server_closing?' server 已關閉，如需重新編輯請重跑 edit。':'');
+          if(res.server_closing){exportBtn.dataset.closed='1';exportBtn.disabled=true;reviewedCb.disabled=true;}
+        }
         else{statusEl.textContent='❌ 匯出被擋：'+(res.reason||'')+(res.failing?(' — '+res.failing.map(function(f){return f.label;}).join('；')):'');}
       })
       .catch(function(e){statusEl.textContent='❌ 匯出失敗：'+e;})
-      .finally(function(){refresh();});
+      .finally(function(){if(!exportBtn.dataset.closed){refresh();}});
     });
 
     render();refresh();

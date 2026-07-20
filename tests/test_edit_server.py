@@ -388,3 +388,15 @@ def test_export_failure_does_not_close_server(tmp_path, monkeypatch):
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+def test_edit_page_handles_server_closing_flag(tmp_path):
+    from script.edit_server import render_edit_page
+    out = tmp_path / "mtg"
+    (out / "intermediate").mkdir(parents=True)
+    (out / "intermediate" / "synthesized.json").write_text(
+        SynthesizedMinutes(topics=[SynthTopic(title="議題A", summary="s")]).model_dump_json(),
+        encoding="utf-8")
+    html = render_edit_page(out)
+    # the page's export handler must react to the server_closing flag
+    assert "server_closing" in html
