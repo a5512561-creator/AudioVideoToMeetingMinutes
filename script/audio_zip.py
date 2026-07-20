@@ -13,10 +13,12 @@ from script.audio_assets import output_audio, clip_start, cut_clips
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 
-def _clip_key(timestamps, pre, cut_map):
+def _clip_key_for(timestamps, pre, cut_map):
     if not timestamps:
         return None
     s = clip_start(timestamps[0], pre)
+    # `s not in cut_map` also covers a clip ffmpeg failed to cut (cut_clips is
+    # best-effort and skips failed seeks) — such items just get no ▶ button.
     if s is None or s not in cut_map:
         return None
     return str(s)
@@ -47,12 +49,12 @@ def build_audio_zip(synth, out_dir, *, pre_seconds: int, duration: int):
 
     topics = [
         {"title": t.title, "summary": t.summary, "decisions": list(t.decisions),
-         "clip": _clip_key(t.source_timestamps, pre_seconds, cut_map)}
+         "clip": _clip_key_for(t.source_timestamps, pre_seconds, cut_map)}
         for t in synth.topics
     ]
     actions = [
         {"idx": i, "task": a.task, "owner": a.owner, "due": a.due,
-         "clip": _clip_key(a.source_timestamps, pre_seconds, cut_map)}
+         "clip": _clip_key_for(a.source_timestamps, pre_seconds, cut_map)}
         for i, a in enumerate(synth.action_items, start=1)
     ]
 
