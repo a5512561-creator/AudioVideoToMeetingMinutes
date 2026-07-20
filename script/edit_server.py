@@ -149,6 +149,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_html(render_edit_page(out_dir))
         elif self.path == "/data":
             self._send_json(200, load_data(out_dir))
+        elif self.path == "/ping":
+            self._send_json(200, {"app": "minutes-edit", "name": Path(out_dir).name})
         else:
             self.send_error(404)
 

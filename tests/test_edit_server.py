@@ -207,3 +207,28 @@ def test_registry_corrupt_reads_as_none(tmp_path):
     out.mkdir()
     (out / ".edit-server.json").write_text("{not json", encoding="utf-8")
     assert read_registry(out) is None
+
+
+def test_ping_returns_app_and_meeting_marker(tmp_path):
+    import threading
+    import urllib.request
+    from script.edit_server import build_server
+
+    out = tmp_path / "mtg"
+    (out / "intermediate").mkdir(parents=True)
+    (out / "intermediate" / "synthesized.json").write_text(
+        SynthesizedMinutes(topics=[SynthTopic(title="議題A", summary="s")]).model_dump_json(),
+        encoding="utf-8")
+
+    httpd = build_server(out)
+    port = httpd.server_address[1]
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    try:
+        body = urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/ping", timeout=2).read().decode("utf-8")
+        data = json.loads(body)
+        assert data == {"app": "minutes-edit", "name": "mtg"}
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
