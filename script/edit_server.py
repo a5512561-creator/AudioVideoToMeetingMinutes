@@ -4,6 +4,7 @@ already-synthesized output, never the raw transcript).
 """
 import json
 import os
+import threading
 import urllib.request
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -200,7 +201,15 @@ class _Handler(BaseHTTPRequestHandler):
             self._send_json(400, {"ok": False, "reason": "bad_json"})
             return
         result = handle_export(posted, self.server.out_dir)
+        if result.get("ok"):
+            # Export succeeded (email.html written + Outlook draft opened) = the
+            # meeting is done. Tell the page, flush the response, THEN shut the
+            # server down from a separate thread (calling shutdown() from this
+            # handler thread is safe — it is not the serve_forever thread).
+            result["server_closing"] = True
         self._send_json(200 if result.get("ok") else 422, result)
+        if result.get("ok"):
+            threading.Thread(target=self.server.shutdown, daemon=True).start()
 
     def log_message(self, *args):  # keep the terminal quiet
         pass

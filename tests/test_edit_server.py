@@ -312,3 +312,79 @@ def test_ping_ok_false_on_connection_error(monkeypatch):
         raise OSError("connection refused")
     monkeypatch.setattr("urllib.request.urlopen", boom)
     assert edit_server._ping_ok(59999, "mtg") is False
+
+
+def test_export_success_auto_closes_server(tmp_path, monkeypatch):
+    import threading
+    import urllib.request
+    from script.edit_server import build_server
+
+    out = tmp_path / "mtg"
+    (out / "intermediate").mkdir(parents=True)
+    (out / "intermediate" / "synthesized.json").write_text(
+        SynthesizedMinutes(
+            topics=[SynthTopic(title="議題A", summary="s", decisions=["決議一"])]
+        ).model_dump_json(), encoding="utf-8")
+    monkeypatch.setattr("script.edit_server.open_draft", lambda *a: False)
+
+    httpd = build_server(out)
+    port = httpd.server_address[1]
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    try:
+        body = json.dumps({
+            "synthesized": {
+                "topics": [{"title": "議題A", "summary": "s", "decisions": ["決議一"]}],
+                "action_items": [],
+            },
+            "reviewed": True,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/export", data=body,
+            headers={"Content-Type": "application/json"})
+        res = json.loads(urllib.request.urlopen(req).read().decode("utf-8"))
+        assert res["ok"] is True
+        assert res["server_closing"] is True
+        # the server must stop on its own shortly after a successful export
+        t.join(timeout=3.0)
+        assert not t.is_alive()
+    finally:
+        httpd.shutdown()      # no-op if already stopped
+        httpd.server_close()
+
+
+def test_export_failure_does_not_close_server(tmp_path, monkeypatch):
+    import threading
+    import urllib.request
+    import urllib.error
+    from script.edit_server import build_server
+
+    out = tmp_path / "mtg"
+    (out / "intermediate").mkdir(parents=True)
+    (out / "intermediate" / "synthesized.json").write_text(
+        SynthesizedMinutes().model_dump_json(), encoding="utf-8")
+    monkeypatch.setattr("script.edit_server.open_draft", lambda *a: True)
+
+    httpd = build_server(out)
+    port = httpd.server_address[1]
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    try:
+        body = json.dumps({
+            "synthesized": {"topics": [], "action_items": [
+                {"task": "x", "owner": "", "due": "", "priority": "high"}]},
+            "reviewed": True,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/export", data=body,
+            headers={"Content-Type": "application/json"})
+        try:
+            urllib.request.urlopen(req)
+        except urllib.error.HTTPError as e:
+            assert e.code == 422
+        # server must still be alive after a blocked export
+        t.join(timeout=0.5)
+        assert t.is_alive()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
