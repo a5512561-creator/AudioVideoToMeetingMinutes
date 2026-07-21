@@ -27,6 +27,7 @@ from script.audio_assets import (
 from script.transcript_corrector import correct_transcript
 from script.agents.corrector_agent import CorrectorAgent
 from script.schemas import MeetingMinutes, MeetingMeta, ReviewResult, SynthesizedMinutes
+from script.intermediate_check import validate_intermediate
 from script import speaker_map as _spk_map
 
 
@@ -119,6 +120,13 @@ def run_pipeline(
                 "intermediate/review.json and intermediate/synthesized.json "
                 "from a previous full run."
             )
+        _report = validate_intermediate(out_dir)
+        if not _report["ok"]:
+            _bad = "; ".join(
+                f"{stem}.json: {res['error'].splitlines()[0]}"
+                for stem, res in _report["files"].items() if not res["ok"])
+            raise RuntimeError(
+                f"--rerender 前置檢查失敗（intermediate JSON 不合 schema）：{_bad}")
         minutes = MeetingMinutes.model_validate_json(minutes_path.read_text(encoding="utf-8"))
         review = ReviewResult.model_validate_json(review_path.read_text(encoding="utf-8"))
         synth = SynthesizedMinutes.model_validate_json(synth_path.read_text(encoding="utf-8"))
