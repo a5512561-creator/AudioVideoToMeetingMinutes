@@ -469,3 +469,18 @@ def test_rerender_without_cached_audit_writes_mechanical_only(
     assert result.semantic == []          # nothing cached, no LLM on rerender
     assert result.mechanical              # mechanical still computed
     assert result.overall_pass is True    # no actions/decisions -> nothing to fail
+
+
+def test_rerender_gives_clean_error_on_bad_intermediate(tmp_path):
+    settings = _settings(tmp_path)
+    inter = Path(settings.out_dir) / "t" / "intermediate"
+    inter.mkdir(parents=True)
+    # minutes.json wrong shape (a required list is a string); review + synthesized valid
+    (inter / "minutes.json").write_text('{"conclusions": "not-a-list", "actions": []}',
+                                         encoding="utf-8")
+    (inter / "review.json").write_text(ReviewResult(notes=[]).model_dump_json(), encoding="utf-8")
+    (inter / "synthesized.json").write_text(
+        SynthesizedMinutes(topics=[SynthTopic(title="t", summary="s")]).model_dump_json(),
+        encoding="utf-8")
+    with pytest.raises(RuntimeError, match="minutes.json"):
+        run_pipeline(_src(tmp_path), settings=settings, name="t", rerender_only=True)

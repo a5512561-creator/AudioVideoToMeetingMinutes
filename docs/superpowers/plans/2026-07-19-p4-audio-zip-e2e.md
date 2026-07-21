@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **⚠️ NEEDS USER SIGN-OFF BEFORE EXECUTION (gate C2).** One design choice is open — the browser-E2E mechanism (Task 4). The recommended approach is written below, but confirm it before executing. Everything else (Tasks 1-3, 5) is settled.
+> **✅ C2 SIGNED OFF (2026-07-19).** The user chose "全做": build + place the outputs AND the full Playwright headless-browser E2E (Task 4). Proceed with all tasks.
 
-**Goal:** Produce `minutes_audio.zip` (an `email_with_audio.html` + the 10-second clips it references) alongside the P3 outputs, and verify every clip is really playable before declaring the zip good — quick structural check, then a real-browser click-through of every clip, deleting the temp unzip folder only when all pass.
+**Goal:** Produce `minutes_audio.zip` (an `email_with_audio.html` + the 10-second clips it references) plus a plain `email.html`, **co-locate both into the transcript folder** (next to the transcript + recording, for SharePoint), and verify every clip is really playable before declaring the zip good — quick structural check, ffprobe audibility, then a real-browser click-through of every clip, deleting the temp unzip folder only when all pass.
+
+**Co-location contract:** the `audiozip` command takes the **transcript path** (as `process` does). It builds/verifies the zip under `out/<name>`, then copies `email.html` + `minutes_audio.zip` into `Path(<transcript>).parent` (the meeting folder). If the argument is a bare name (no directory), co-location is skipped with a warning and the files stay under `out/<name>`. No pipeline change is needed — the transcript folder is derived from the argument.
 
 **Architecture:** Reuse the existing `cut_clips()` ffmpeg cutter. Build a self-contained `email_with_audio.html` that references clips by **relative** path (works once unzipped locally). A pure-Python pre-zip check + `ffprobe`-based audibility proxy gate the zip; a browser-automation pass (recommended: Playwright headless Chromium) then loads the unzipped page and plays every clip to confirm real playback. On full pass the temp unzip folder is removed; any failure is reported and the temp kept.
 
@@ -626,37 +628,78 @@ git commit -m "feat: Playwright headless E2E — play every clip, confirm real p
 
 ---
 
-## Task 5: `audiozip` CLI command
+## Task 5: `audiozip` CLI command + co-locate to the transcript folder
 
 **Files:**
-- Modify: `script/main.py`
-- Test: `tests/test_main.py`
+- Modify: `script/audio_zip.py` (add `place_outputs`)
+- Modify: `script/main.py` (add `audiozip`)
+- Test: `tests/test_audio_zip.py`, `tests/test_main.py`
 
-Wire building + verifying the zip behind one command:
-`python -m script.main audiozip <name>`.
+Wire build + verify + email.html generation behind one command, then copy
+`email.html` + `minutes_audio.zip` next to the transcript:
+`python -m script.main audiozip <transcript-path>`.
 
 - [ ] **Step 1: Write the failing test**
+
+Add to `tests/test_audio_zip.py`:
+
+```python
+def test_place_outputs_copies_present_files(tmp_path):
+    from script.audio_zip import place_outputs
+    out = tmp_path / "out" / "t"
+    out.mkdir(parents=True)
+    (out / "email.html").write_text("E", encoding="utf-8")
+    (out / "minutes_audio.zip").write_bytes(b"Z")
+    dest = tmp_path / "src" / "mtg"
+    dest.mkdir(parents=True)
+    copied = place_outputs(out, dest, ["email.html", "minutes_audio.zip"])
+    assert (dest / "email.html").read_text(encoding="utf-8") == "E"
+    assert (dest / "minutes_audio.zip").read_bytes() == b"Z"
+    assert set(copied) == {"email.html", "minutes_audio.zip"}
+
+
+def test_place_outputs_skips_missing(tmp_path):
+    from script.audio_zip import place_outputs
+    out = tmp_path / "out" / "t"
+    out.mkdir(parents=True)
+    (out / "email.html").write_text("E", encoding="utf-8")
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    copied = place_outputs(out, dest, ["email.html", "minutes_audio.zip"])
+    assert copied == ["email.html"]  # zip absent -> skipped
+```
 
 Add to `tests/test_main.py`:
 
 ```python
-def test_cli_audiozip_builds_and_verifies(monkeypatch, tmp_path):
+def test_cli_audiozip_builds_verifies_and_colocates(monkeypatch, tmp_path):
     _env(monkeypatch, tmp_path)
-    inter = tmp_path / "out" / "t" / "intermediate"
-    inter.mkdir(parents=True)
     from script.schemas import SynthesizedMinutes, SynthTopic
+    # transcript sits in its own folder; outputs must land next to it
+    mtg = tmp_path / "src" / "MeetingX"
+    mtg.mkdir(parents=True)
+    transcript = mtg / "MeetingX.vtt"
+    transcript.write_text("WEBVTT", encoding="utf-8")
+    inter = tmp_path / "out" / "MeetingX" / "intermediate"
+    inter.mkdir(parents=True)
     (inter / "synthesized.json").write_text(
         SynthesizedMinutes(topics=[SynthTopic(title="A", summary="s")]).model_dump_json(),
         encoding="utf-8")
-    calls = {}
-    monkeypatch.setattr("script.audio_zip.build_audio_zip",
-                        lambda synth, out, **k: calls.setdefault("zip", tmp_path / "z.zip"))
+
+    def _fake_build(synth, out, **k):
+        (Path(out) / "minutes_audio.zip").write_bytes(b"ZIP")
+        return Path(out) / "minutes_audio.zip"
+    monkeypatch.setattr("script.audio_zip.build_audio_zip", _fake_build)
     monkeypatch.setattr("script.audio_verify.verify_zip",
-                        lambda z, **k: {"ok": True, "audible": [], "silent": [], "temp_dir": None})
+                        lambda z, **k: {"ok": True, "audible": ["clip_1.m4a"],
+                                        "silent": [], "temp_dir": None})
+
     runner = CliRunner()
-    result = runner.invoke(app, ["audiozip", "t"])
+    result = runner.invoke(app, ["audiozip", str(transcript)])
     assert result.exit_code == 0, result.output
-    assert "zip" in calls
+    # co-located next to the transcript
+    assert (mtg / "email.html").exists()
+    assert (mtg / "minutes_audio.zip").read_bytes() == b"ZIP"
 
 
 def test_cli_audiozip_missing_synth_errors(monkeypatch, tmp_path):
@@ -669,23 +712,47 @@ def test_cli_audiozip_missing_synth_errors(monkeypatch, tmp_path):
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `.venv\Scripts\python.exe -m pytest tests/test_main.py::test_cli_audiozip_builds_and_verifies -v`
-Expected: FAIL (no `audiozip` command)
+Run: `.venv\Scripts\python.exe -m pytest tests/test_audio_zip.py::test_place_outputs_copies_present_files tests/test_main.py::test_cli_audiozip_builds_verifies_and_colocates -v`
+Expected: FAIL (`place_outputs` / `audiozip` don't exist yet)
 
 - [ ] **Step 3: Write minimal implementation**
 
-In `script/main.py`, add after the `edit` command:
+First, add `place_outputs` to `script/audio_zip.py` (add `import shutil` to its imports):
+
+```python
+import shutil
+
+
+def place_outputs(out_dir, dest_dir, names) -> list[str]:
+    """Copy the named output files from out_dir into dest_dir (skipping any that
+    don't exist). Returns the names actually copied. Used to co-locate email.html
+    + minutes_audio.zip next to the transcript for SharePoint upload."""
+    out_dir, dest_dir = Path(out_dir), Path(dest_dir)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    copied = []
+    for n in names:
+        src = out_dir / n
+        if src.exists():
+            shutil.copy2(src, dest_dir / n)
+            copied.append(n)
+    return copied
+```
+
+Then in `script/main.py`, add after the `edit` command:
 
 ```python
 @app.command()
 def audiozip(
-    src: str = typer.Argument(..., help="Output folder name (or transcript path) under out/."),
-    name: str | None = typer.Option(None, "--name"),
-    no_browser: bool = typer.Option(False, "--no-browser", help="Skip the Playwright browser E2E (ffprobe check only)."),
+    src: str = typer.Argument(..., help="Transcript path (preferred — outputs co-locate next to it) or an out/<name> folder name."),
+    name: str | None = typer.Option(None, "--name", help="Output folder name (defaults to src basename)."),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Skip the Playwright browser E2E (ffprobe audibility check only)."),
 ) -> None:
-    """Build minutes_audio.zip (clips + relative-ref HTML) and verify every clip plays."""
-    from script.audio_zip import build_audio_zip
+    """Build minutes_audio.zip (clips + relative-ref HTML), verify every clip
+    plays, then co-locate email.html + the zip next to the transcript."""
+    from script.audio_zip import build_audio_zip, place_outputs
     from script.audio_verify import verify_zip
+    from script.email_writer import synth_to_finalized, render_email_html
+    from script.meeting_meta import empty_meta
     from script.schemas import SynthesizedMinutes
     settings = Settings()
     base = name or Path(src).stem
@@ -695,6 +762,7 @@ def audiozip(
         typer.echo(f"找不到 {synth_path} — 請先跑 process 產生綜整結果。")
         raise typer.Exit(code=1)
     synth = SynthesizedMinutes.model_validate_json(synth_path.read_text(encoding="utf-8"))
+
     zip_path = build_audio_zip(
         synth, out_dir,
         pre_seconds=settings.audio_clip_pre_seconds,
@@ -702,32 +770,48 @@ def audiozip(
     if zip_path is None:
         typer.echo("此會議資料夾沒有同名音檔，無法產生音檔 zip。")
         raise typer.Exit(code=1)
+
     result = verify_zip(zip_path, run_browser=not no_browser)
-    if result["ok"]:
-        typer.echo(f"✅ {zip_path} 已產生並通過驗證（每條音檔可播放）。")
-    else:
+    if not result["ok"]:
         typer.echo(f"❌ 音檔 zip 驗證未過（stage={result.get('stage')}）："
-                   f"silent={result.get('silent')} 保留暫存={result.get('temp_dir')}")
+                   f"silent={result.get('silent')} "
+                   f"failed={result.get('browser', {}).get('failed')} "
+                   f"保留暫存={result.get('temp_dir')}")
         raise typer.Exit(code=1)
+
+    # Plain email.html (no audio) from the current synthesized minutes.
+    final = synth_to_finalized(synth, subject=base, meta=synth.meta or empty_meta())
+    (out_dir / "email.html").write_text(render_email_html(final), encoding="utf-8")
+
+    outputs = ["email.html", "minutes_audio.zip"]
+    src_dir = Path(src).parent
+    if str(src_dir) not in ("", ".") and src_dir.exists() and src_dir.resolve() != out_dir.resolve():
+        copied = place_outputs(out_dir, src_dir, outputs)
+        typer.echo(f"✅ 驗證通過（每條音檔可播放）。已放到逐字稿目錄 {src_dir}：{', '.join(copied)}")
+    else:
+        typer.echo(f"✅ 驗證通過（每條音檔可播放）。輸出在 {out_dir}："
+                   f"{', '.join(outputs)}（未給逐字稿路徑，故未 co-locate — "
+                   f"用 `audiozip <逐字稿路徑>` 可自動放到會議資料夾）")
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `.venv\Scripts\python.exe -m pytest tests/test_main.py -v`
-Expected: PASS (audiozip tests + all existing main tests green)
+Run: `.venv\Scripts\python.exe -m pytest tests/test_audio_zip.py tests/test_main.py -v`
+Expected: PASS (place_outputs + audiozip co-locate tests + all existing tests green)
 
 - [ ] **Step 5: Commit**
 
 ```
-git add script/main.py tests/test_main.py
-git commit -m "feat: add `audiozip` CLI command (build + verify audio zip)"
+git add script/audio_zip.py script/main.py tests/test_audio_zip.py tests/test_main.py
+git commit -m "feat: `audiozip` command builds+verifies zip and co-locates outputs to the transcript folder"
 ```
 
 ---
 
 ## Notes for the Implementer
 
-- **Confirm the Task 4 mechanism (C2) first.** If the user picks ffprobe-only, skip Task 4 and default `verify_zip(run_browser=False)`; the `audiozip --no-browser` flag already supports that.
+- **Task 4 (Playwright E2E) is approved (C2 signed off) — do it.** Both the ffprobe audibility gate (Task 3) AND the Playwright browser pass (Task 4) ship. `audiozip --no-browser` still exists as an escape hatch for the user, but the default runs the browser E2E.
+- **Co-location.** `audiozip <transcript-path>` copies `email.html` + `minutes_audio.zip` into `Path(transcript).parent` after the zip verifies. A bare-name argument (no directory) skips co-location and leaves outputs under `out/<name>` (with a hint to re-run with the path). The `edit` export still writes email.html to `out/<name>`; `audiozip` regenerates email.html from the (possibly edited) `synthesized.json` so the co-located copy reflects the final content.
 - **Relative refs, not data URLs.** The zip's HTML references `clip_<sec>.<ext>` relatively — correct because it is unzipped locally before viewing (opposite of the SharePoint-viewer case in `html_writer.py`, which needs data URLs).
 - **Delete temp only on full pass.** `verify_zip` removes the unzip temp dir only when every clip is audible AND the browser pass (if run) is green; on any failure it keeps the temp for inspection and reports the path.
 - **ffprobe ships with ffmpeg** (already required by `cut_clips`). `_probe_duration` returns 0.0 if ffprobe is missing, which surfaces as a failed (silent) clip rather than a crash.

@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import patch
 from typer.testing import CliRunner
 from script.main import app
@@ -168,3 +169,67 @@ def test_cli_edit_missing_synth_errors(monkeypatch, tmp_path):
     result = runner.invoke(app, ["edit", "nope"])
     assert result.exit_code != 0
     assert "synthesized.json" in result.output
+
+
+def test_cli_audiozip_builds_verifies_and_colocates(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    from script.schemas import SynthesizedMinutes, SynthTopic
+    # transcript sits in its own folder; outputs must land next to it
+    mtg = tmp_path / "src" / "MeetingX"
+    mtg.mkdir(parents=True)
+    transcript = mtg / "MeetingX.vtt"
+    transcript.write_text("WEBVTT", encoding="utf-8")
+    inter = tmp_path / "out" / "MeetingX" / "intermediate"
+    inter.mkdir(parents=True)
+    (inter / "synthesized.json").write_text(
+        SynthesizedMinutes(topics=[SynthTopic(title="A", summary="s")]).model_dump_json(),
+        encoding="utf-8")
+
+    def _fake_build(synth, out, **k):
+        (Path(out) / "minutes_audio.zip").write_bytes(b"ZIP")
+        return Path(out) / "minutes_audio.zip"
+    monkeypatch.setattr("script.audio_zip.build_audio_zip", _fake_build)
+    monkeypatch.setattr("script.audio_verify.verify_zip",
+                        lambda z, **k: {"ok": True, "audible": ["clip_1.m4a"],
+                                        "silent": [], "temp_dir": None})
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["audiozip", str(transcript)])
+    assert result.exit_code == 0, result.output
+    # co-located next to the transcript
+    assert (mtg / "email.html").exists()
+    assert (mtg / "minutes_audio.zip").read_bytes() == b"ZIP"
+
+
+def test_cli_audiozip_missing_synth_errors(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(app, ["audiozip", "nope"])
+    assert result.exit_code != 0
+    assert "synthesized.json" in result.output
+
+
+def test_cli_check_json_ok(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    from script.schemas import MeetingMinutes, ReviewResult, SynthesizedMinutes, SynthTopic
+    inter = tmp_path / "out" / "t" / "intermediate"
+    inter.mkdir(parents=True)
+    (inter / "minutes.json").write_text(MeetingMinutes(conclusions=[], actions=[]).model_dump_json(), encoding="utf-8")
+    (inter / "review.json").write_text(ReviewResult(notes=[]).model_dump_json(), encoding="utf-8")
+    (inter / "synthesized.json").write_text(
+        SynthesizedMinutes(topics=[SynthTopic(title="A", summary="s")]).model_dump_json(), encoding="utf-8")
+    runner = CliRunner()
+    result = runner.invoke(app, ["check-json", "t"])
+    assert result.exit_code == 0, result.output
+    assert "OK" in result.output
+
+
+def test_cli_check_json_bad_exits_nonzero(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    inter = tmp_path / "out" / "t" / "intermediate"
+    inter.mkdir(parents=True)
+    (inter / "minutes.json").write_text("{not json", encoding="utf-8")
+    runner = CliRunner()
+    result = runner.invoke(app, ["check-json", "t"])
+    assert result.exit_code != 0
+    assert "minutes" in result.output

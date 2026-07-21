@@ -56,6 +56,13 @@ You are allowed to read the transcript. Do NOT create the lock file.
    `out/<name>/intermediate/`: `minutes.json` (MeetingMinutes),
    `review.json` (ReviewResult), `synthesized.json` (SynthesizedMinutes),
    matching the pydantic schemas in `script/schemas.py`.
+2b. Validate the three files against the schemas BEFORE rendering (LLM-free):
+   `python -m script.main check-json "<name>"`
+   Fix any file it reports as ❌ — common mistakes: a required field missing, a
+   wrong type (e.g. a list written as a string), or a JSON syntax error (it
+   reports the line/column). Re-run check-json until all three are OK. (The
+   `--rerender` in the next step also preflights this and refuses with the same
+   check on a bad file, so a mistake never reaches a raw traceback.)
 3. Re-render + audit without calling any LLM:
    `python -m script.main process "<transcript path>" --name "<name>" --rerender`
    (The `--rerender` path recomputes the mechanical audit and re-renders HTML.)
@@ -71,5 +78,17 @@ You are allowed to read the transcript. Do NOT create the lock file.
   content moves.
 - The ▶ audio clips (audio extraction from `.mp4` and per-anchor cutting) need
   `ffmpeg` on PATH. Without it the minutes still generate fully; only the clips
-  are skipped (`stage.audio_asset` warns / `audio_clips count=0`). If clips are
-  wanted and missing, check `ffmpeg -version` first.
+  are skipped (`stage.audio_asset` warns error=`audio-track extraction failed` /
+  `audio_clips count=0`).
+- GOTCHA — background runs don't inherit your interactive PATH. `ffmpeg -version`
+  can succeed in your terminal yet the `process` run still fails extraction,
+  because the pipeline was launched in a fresh/background shell that never saw
+  ffmpeg's directory. So checking `ffmpeg -version` alone is NOT enough. Instead,
+  prepend ffmpeg's bin dir to PATH **in the very same command** that runs the
+  pipeline, e.g. (Windows PowerShell):
+  `$env:Path += ";<path-to-ffmpeg-bin>"; python -m script.main process ...`
+  (bash: `PATH="$PATH:<path-to-ffmpeg-bin>" python -m script.main process ...`).
+  Find `<path-to-ffmpeg-bin>` from the machine's ffmpeg install (do not hardcode
+  one person's path — each colleague may install it elsewhere). If a run already
+  produced `count=0` with `audio-track extraction failed`, just re-run `process`
+  with ffmpeg prepended to PATH; the LLM stages re-run but the ▶ clips then cut.

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <title>會議記錄（含音檔） — {{ meeting_name }}</title>
+  <style>
+    body{font-family:"Noto Sans TC","Microsoft JhengHei",Arial,sans-serif;max-width:900px;margin:0 auto;padding:16px;color:#2d3748}
+    h3{margin:14px 0 4px}
+    .decisions{color:#0563c1}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{border:1px solid #e2e8f0;padding:6px 8px;text-align:left}
+    .play{border:1px solid #cbd5e0;background:#edf2f7;color:#2b6cb0;border-radius:4px;padding:0 7px;cursor:pointer;margin-left:6px}
+  </style>
+</head>
+<body>
+  <h1>會議記錄：{{ meeting_name }}</h1>
+  {% for t in topics %}
+  <article>
+    <h3>{{ t.title }}</h3>
+    <p>{{ t.summary }}</p>
+    {% if t.decisions %}<div class="decisions"><b>■ 決議</b><ul>
+      {% for d in t.decisions %}<li>{{ d }}{% if t.clip %} <button type="button" class="play" data-clip="{{ t.clip }}">▶ 聽</button>{% endif %}</li>{% endfor %}
+    </ul></div>{% endif %}
+  </article>
+  {% endfor %}
+  <h2>Action Items</h2>
+  <table><tr><th>#</th><th>任務</th><th>負責人</th><th>期限</th><th>聽</th></tr>
+  {% for a in actions %}
+    <tr><td>{{ a.idx }}</td><td>{{ a.task }}</td><td>{{ a.owner }}</td><td>{{ a.due }}</td>
+    <td>{% if a.clip %}<button type="button" class="play" data-clip="{{ a.clip }}">▶ 聽</button>{% endif %}</td></tr>
+  {% endfor %}
+  </table>
+  <audio id="player" preload="none"></audio>
+  <script>
+    var CLIPS = {{ clips_js|safe }};
+    var player = document.getElementById('player');
+    document.querySelectorAll('.play').forEach(function(b){
+      b.addEventListener('click', function(){
+        var f = CLIPS[b.dataset.clip];
+        if(!f) return;
+        player.src = f;   // relative path to clip_<sec>.<ext>
+        player.play();
+      });
+    });
+  </script>
+</body>
+</html>
