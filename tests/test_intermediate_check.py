@@ -70,3 +70,4 @@ def test_bad_json_reported(tmp_path):
     r = validate_intermediate(tmp_path / "out" / "t")
     assert r["ok"] is False
     assert r["files"]["review"]["ok"] is False
+    assert "語法" in r["files"]["review"]["error"]

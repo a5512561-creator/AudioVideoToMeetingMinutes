@@ -5,6 +5,7 @@ synthesized.json to match the schemas, then runs `--rerender`. This validates
 each file up front and returns a friendly per-file report so a shape mistake
 surfaces clearly instead of a raw pydantic traceback.
 """
+import json
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -32,10 +33,19 @@ def validate_intermediate(out_dir) -> dict:
             files[stem] = {"ok": False, "error": f"找不到 {path}"}
             continue
         try:
-            schema.model_validate_json(path.read_text(encoding="utf-8"))
+            text = path.read_text(encoding="utf-8")
+        except OSError as e:
+            files[stem] = {"ok": False, "error": f"讀取失敗：{e}"}
+            continue
+        try:
+            json.loads(text)  # surface malformed JSON with a clear syntax message
+        except json.JSONDecodeError as e:
+            files[stem] = {"ok": False,
+                           "error": f"JSON 語法錯誤（行 {e.lineno} 欄 {e.colno}）：{e.msg}"}
+            continue
+        try:
+            schema.model_validate_json(text)
             files[stem] = {"ok": True, "error": ""}
         except ValidationError as e:
             files[stem] = {"ok": False, "error": str(e)}
-        except (ValueError, OSError) as e:
-            files[stem] = {"ok": False, "error": f"JSON 解析失敗：{e}"}
     return {"ok": all(f["ok"] for f in files.values()), "files": files}
