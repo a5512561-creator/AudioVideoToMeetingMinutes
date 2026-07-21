@@ -107,6 +107,14 @@ def run_pipeline(
     log_kv(logger, "INFO", "pipeline.start", file=src, name=base_name,
            model=settings.openai_model, rerender_only=rerender_only)
 
+    # Persist the transcript's absolute path so the edit server can co-locate
+    # the reviewed email.html + minutes_audio.zip back into the meeting folder
+    # at export time (it is launched with only out_dir and would otherwise not
+    # know where the source lives).
+    (out_dir / "source.json").write_text(
+        json.dumps({"transcript": str(Path(src).resolve())}, ensure_ascii=False),
+        encoding="utf-8")
+
     # Always load speaker_map (empty dict if missing)
     spk_map = _spk_map.load(str(out_dir / "speaker_map.json"))
 

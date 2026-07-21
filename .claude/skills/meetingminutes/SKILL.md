@@ -96,8 +96,12 @@ You are allowed to read the transcript. Do NOT create the lock file.
   Action）。決議已從所有 render 模板（minutes / 兩個 email / edit 頁）與機械稽核
   （`decision_nonempty` gate）移除；`decisions` 欄位仍留在 schema/合成輸出裡（不顯示、
   不稽核，向後相容舊 JSON）。不要重新加回決議區塊，除非使用者明確要求。
-- 音檔 zip：`python -m script.main audiozip "<逐字稿路徑>"` 產出 `minutes_audio.zip`
-  （`email_with_audio.html` 相對路徑引用 ＋ 每段 clip），跑 `verify_zip`（ffprobe 可聽性
-  ＋ Playwright 每段可播放 E2E），通過後把 `email.html` ＋ zip co-locate 到逐字稿目錄供
-  SharePoint 上傳。核心在 `script/audio_zip.py`，驗證在 `script/audio_verify.py`；輸出落點
-  `out/<name>/minutes_audio.zip`。這是獨立指令，`process` 不會自動產 zip。
+- 音檔 zip ＋ co-locate：**edit 頁匯出成功後會自動**把已審閱的 `email.html` ＋
+  `minutes_audio.zip` 放回會議資料夾（逐字稿旁），不需再手動跑 `audiozip`。機制：`process`/
+  `--rerender` 會把逐字稿絕對路徑寫進 `out/<name>/source.json`；`edit_server.handle_export`
+  匯出後讀它、best-effort 建 zip 並 co-locate（失敗不影響匯出）。zip 內是
+  `email_with_audio.html`（相對引用 ＋ 每段 clip）——切 clip 需要 ffmpeg 在 PATH（啟動 `edit`
+  時就要有），否則 zip 仍產出但無 ▶。核心 `script/audio_zip.py`。
+- `python -m script.main audiozip "<逐字稿路徑>"`：**手動**版本，額外跑完整 `verify_zip`
+  （ffprobe 可聽性 ＋ Playwright 每段可播放 E2E，`script/audio_verify.py`）。匯出時的自動
+  co-locate 為求穩健**略過**這個瀏覽器 E2E；要嚴格驗證每段可播放時才用這支獨立指令。

@@ -33,6 +33,40 @@ def test_export_writes_outputs_and_opens_outlook(tmp_path, monkeypatch):
     assert "議題A" in seen["html"]
 
 
+def test_export_co_locates_reviewed_outputs_to_meeting_folder(tmp_path, monkeypatch):
+    out = tmp_path / "out" / "mtg"
+    (out / "intermediate").mkdir(parents=True)
+    meeting = tmp_path / "src" / "mtg"
+    meeting.mkdir(parents=True)
+    (meeting / "mtg.txt").write_text("00:01 hi", encoding="utf-8")
+    (out / "source.json").write_text(
+        json.dumps({"transcript": str(meeting / "mtg.txt")}), encoding="utf-8")
+    monkeypatch.setattr("script.edit_server.open_draft", lambda *a: True)
+
+    r = handle_export({"synthesized": _synth_dict(), "reviewed": True}, out)
+
+    assert r["ok"] is True
+    # email.html is copied next to the transcript automatically (no manual audiozip)
+    assert "email.html" in r["co_located"]
+    assert Path(r["co_locate_dir"]) == meeting
+    assert (meeting / "email.html").exists()
+    # no sibling audio in out_dir -> the zip is skipped, but that never blocks
+    # the email.html copy
+    assert "minutes_audio.zip" not in r["co_located"]
+
+
+def test_export_skips_co_locate_without_source_json(tmp_path, monkeypatch):
+    out = tmp_path / "mtg"
+    (out / "intermediate").mkdir(parents=True)
+    monkeypatch.setattr("script.edit_server.open_draft", lambda *a: True)
+
+    r = handle_export({"synthesized": _synth_dict(), "reviewed": True}, out)
+
+    assert r["ok"] is True
+    assert r["co_located"] == []
+    assert r["co_locate_dir"] is None
+
+
 def test_export_blocked_when_layer1_fails(tmp_path, monkeypatch):
     out = tmp_path / "mtg"
     (out / "intermediate").mkdir(parents=True)

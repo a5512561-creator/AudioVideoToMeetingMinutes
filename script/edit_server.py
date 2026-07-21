@@ -18,9 +18,60 @@ from script import audit_mechanical
 from script.email_writer import synth_to_finalized, render_email_html
 from script.outlook_draft import open_draft
 from script.meeting_meta import empty_meta
+from script.audio_zip import build_audio_zip, place_outputs
+from script.config import Settings
 
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
 _REGISTRY_NAME = ".edit-server.json"
+
+
+def _meeting_dir(out_dir) -> Path | None:
+    """The folder holding the original transcript, from out_dir/source.json.
+
+    Returns None when source.json is absent/unreadable (older meetings) or when
+    it points back at out_dir itself — in either case there is nothing to
+    co-locate to.
+    """
+    p = Path(out_dir) / "source.json"
+    if not p.exists():
+        return None
+    try:
+        transcript = json.loads(p.read_text(encoding="utf-8")).get("transcript")
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not transcript:
+        return None
+    meeting_dir = Path(transcript).parent
+    if meeting_dir.resolve() == Path(out_dir).resolve():
+        return None
+    return meeting_dir
+
+
+def _co_locate(out_dir, synth) -> dict:
+    """Best-effort: build the audio zip and copy email.html + the zip into the
+    meeting folder next to the transcript. Never raises — any failure (no
+    source.json, ffmpeg missing, copy error) degrades to whatever was copied,
+    so a co-locate problem can never break an otherwise-successful export.
+    """
+    meeting_dir = _meeting_dir(out_dir)
+    if meeting_dir is None:
+        return {"co_located": [], "co_locate_dir": None}
+    names = ["email.html"]
+    try:
+        settings = Settings()
+        zip_path = build_audio_zip(
+            synth, out_dir,
+            pre_seconds=settings.audio_clip_pre_seconds,
+            duration=settings.audio_clip_duration_seconds)
+        if zip_path is not None:
+            names.append("minutes_audio.zip")
+    except Exception:  # noqa: BLE001 — zip is optional; email.html still co-locates
+        pass
+    try:
+        copied = place_outputs(out_dir, meeting_dir, names)
+    except OSError:
+        copied = []
+    return {"co_located": copied, "co_locate_dir": str(meeting_dir)}
 
 
 def read_registry(out_dir) -> dict | None:
@@ -154,10 +205,16 @@ def handle_export(posted: dict, out_dir) -> dict:
 
     outlook_opened = open_draft(subject, email_html)
 
+    # Auto co-locate the reviewed outputs into the meeting folder (no manual
+    # `audiozip` step needed). Best-effort; never fails the export.
+    colo = _co_locate(out_dir, synth)
+
     return {
         "ok": True,
         "email_html": str(email_path),
         "outlook_opened": outlook_opened,
+        "co_located": colo["co_located"],
+        "co_locate_dir": colo["co_locate_dir"],
     }
 
 

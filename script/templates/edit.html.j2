@@ -124,7 +124,8 @@
       .then(function(res){
         if(res.ok){
           var base=res.outlook_opened?'✅ 已開啟 Outlook 草稿，email.html 已輸出。':'✅ email.html 已輸出；Outlook 未開，請手動開啟。';
-          statusEl.textContent=base+(res.server_closing?' server 已關閉，如需重新編輯請重跑 edit。':'');
+          var colo=(res.co_located&&res.co_located.length)?(' 已放到會議資料夾：'+res.co_located.join('、')+'。'):'';
+          statusEl.textContent=base+colo+(res.server_closing?' server 已關閉，如需重新編輯請重跑 edit。':'');
           if(res.server_closing){exportBtn.dataset.closed='1';exportBtn.disabled=true;reviewedCb.disabled=true;}
         }
         else{statusEl.textContent='❌ 匯出被擋：'+(res.reason||'')+(res.failing?(' — '+res.failing.map(function(f){return f.label;}).join('；')):'');}
