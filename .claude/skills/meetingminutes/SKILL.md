@@ -71,5 +71,17 @@ You are allowed to read the transcript. Do NOT create the lock file.
   content moves.
 - The ▶ audio clips (audio extraction from `.mp4` and per-anchor cutting) need
   `ffmpeg` on PATH. Without it the minutes still generate fully; only the clips
-  are skipped (`stage.audio_asset` warns / `audio_clips count=0`). If clips are
-  wanted and missing, check `ffmpeg -version` first.
+  are skipped (`stage.audio_asset` warns error=`audio-track extraction failed` /
+  `audio_clips count=0`).
+- GOTCHA — background runs don't inherit your interactive PATH. `ffmpeg -version`
+  can succeed in your terminal yet the `process` run still fails extraction,
+  because the pipeline was launched in a fresh/background shell that never saw
+  ffmpeg's directory. So checking `ffmpeg -version` alone is NOT enough. Instead,
+  prepend ffmpeg's bin dir to PATH **in the very same command** that runs the
+  pipeline, e.g. (Windows PowerShell):
+  `$env:Path += ";<path-to-ffmpeg-bin>"; python -m script.main process ...`
+  (bash: `PATH="$PATH:<path-to-ffmpeg-bin>" python -m script.main process ...`).
+  Find `<path-to-ffmpeg-bin>` from the machine's ffmpeg install (do not hardcode
+  one person's path — each colleague may install it elsewhere). If a run already
+  produced `count=0` with `audio-track extraction failed`, just re-run `process`
+  with ffmpeg prepended to PATH; the LLM stages re-run but the ▶ clips then cut.
