@@ -56,6 +56,13 @@ You are allowed to read the transcript. Do NOT create the lock file.
    `out/<name>/intermediate/`: `minutes.json` (MeetingMinutes),
    `review.json` (ReviewResult), `synthesized.json` (SynthesizedMinutes),
    matching the pydantic schemas in `script/schemas.py`.
+2b. Validate the three files against the schemas BEFORE rendering (LLM-free):
+   `python -m script.main check-json "<name>"`
+   Fix any file it reports as ❌ — common mistakes: a required field missing, a
+   wrong type (e.g. a list written as a string), or a JSON syntax error (it
+   reports the line/column). Re-run check-json until all three are OK. (The
+   `--rerender` in the next step also preflights this and refuses with the same
+   check on a bad file, so a mistake never reaches a raw traceback.)
 3. Re-render + audit without calling any LLM:
    `python -m script.main process "<transcript path>" --name "<name>" --rerender`
    (The `--rerender` path recomputes the mechanical audit and re-renders HTML.)
