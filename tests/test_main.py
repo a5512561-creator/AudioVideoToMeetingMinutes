@@ -207,3 +207,29 @@ def test_cli_audiozip_missing_synth_errors(monkeypatch, tmp_path):
     result = runner.invoke(app, ["audiozip", "nope"])
     assert result.exit_code != 0
     assert "synthesized.json" in result.output
+
+
+def test_cli_check_json_ok(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    from script.schemas import MeetingMinutes, ReviewResult, SynthesizedMinutes, SynthTopic
+    inter = tmp_path / "out" / "t" / "intermediate"
+    inter.mkdir(parents=True)
+    (inter / "minutes.json").write_text(MeetingMinutes(conclusions=[], actions=[]).model_dump_json(), encoding="utf-8")
+    (inter / "review.json").write_text(ReviewResult(notes=[]).model_dump_json(), encoding="utf-8")
+    (inter / "synthesized.json").write_text(
+        SynthesizedMinutes(topics=[SynthTopic(title="A", summary="s")]).model_dump_json(), encoding="utf-8")
+    runner = CliRunner()
+    result = runner.invoke(app, ["check-json", "t"])
+    assert result.exit_code == 0, result.output
+    assert "OK" in result.output
+
+
+def test_cli_check_json_bad_exits_nonzero(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    inter = tmp_path / "out" / "t" / "intermediate"
+    inter.mkdir(parents=True)
+    (inter / "minutes.json").write_text("{not json", encoding="utf-8")
+    runner = CliRunner()
+    result = runner.invoke(app, ["check-json", "t"])
+    assert result.exit_code != 0
+    assert "minutes" in result.output

@@ -126,6 +126,33 @@ def edit(
     serve(out_dir, open_browser=not no_browser, port=port)
 
 
+@app.command(name="check-json")
+def check_json(
+    src: str = typer.Argument(..., help="Output folder name (or transcript path) under out/."),
+    name: str | None = typer.Option(None, "--name"),
+) -> None:
+    """Validate the engine-B intermediate JSON against the schemas (LLM-free).
+
+    Run this after writing minutes.json / review.json / synthesized.json by
+    hand and before `process ... --rerender`.
+    """
+    from script.intermediate_check import validate_intermediate
+    settings = Settings()
+    base = name or Path(src).stem
+    out_dir = Path(settings.out_dir) / base
+    report = validate_intermediate(out_dir)
+    for stem, res in report["files"].items():
+        if res["ok"]:
+            typer.echo(f"  {stem}.json：OK ✅")
+        else:
+            typer.echo(f"  {stem}.json：❌ {res['error'].splitlines()[0]}")
+    if report["ok"]:
+        typer.echo("結果：全部 OK — 可以跑 `process <src> --rerender`。")
+    else:
+        typer.echo("結果：有檔案不合 schema（見上）。修正後再跑一次 check-json。")
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def audiozip(
     src: str = typer.Argument(..., help="Transcript path (preferred — outputs co-locate next to it) or an out/<name> folder name."),
