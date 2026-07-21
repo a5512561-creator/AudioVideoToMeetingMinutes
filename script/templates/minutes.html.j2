@@ -63,13 +63,13 @@
       <span>📅 {{ meta.meeting_date }}</span>
       <span>⏱ {{ meta.duration_hint }}</span>
       {% if meta.llm_model %}<span>🤖 LLM 整理：{{ meta.llm_model }}</span>{% endif %}
-      <span>📊 {{ n_topics }} 議題 / {{ n_decisions }} 決議 / {{ n_actions }} Action</span>
+      <span>📊 {{ n_topics }} 議題 / {{ n_actions }} Action</span>
       <span>⚠️ {{ n_warns }} warn / ❌ {{ n_errors }} error</span>
     </div>
   </header>
 
   <nav class="tabs" role="tablist">
-    <button data-tab="topics" class="active" role="tab">議題與決議 ({{ n_topics }})</button>
+    <button data-tab="topics" class="active" role="tab">議題 ({{ n_topics }})</button>
     <button data-tab="actions" role="tab">Action Items ({{ n_actions }})</button>
     <button data-tab="review" role="tab">Review ({{ n_warns + n_errors }})</button>
   </nav>
@@ -83,12 +83,8 @@
       {% if topics %}
       {% for t in topics %}
       <article class="topic searchable">
-        <h3>{{ t.title }}</h3>
+        <h3>{{ t.title }}{% if t.clip %} <button type="button" class="play" data-clip="{{ t.clip }}">▶ 聽</button>{% endif %}</h3>
         <ol class="summary">{% for s in t.summary|sentences %}<li>{{ s }}</li>{% endfor %}</ol>
-        {% if t.decisions %}
-        <div class="decisions"><b>■ 決議</b>
-        <ul>{% for d in t.decisions %}<li>{{ d }}{% if t.clip %} <button type="button" class="play" data-clip="{{ t.clip }}">▶ 聽</button>{% endif %}</li>{% endfor %}</ul></div>
-        {% endif %}
       </article>
       {% endfor %}
       {% else %}<p class="empty">無議題</p>{% endif %}

@@ -106,7 +106,6 @@ def write_minutes_html(
         for n in review.notes
         if n.severity in ("warn", "error")
     ]
-    n_decisions = sum(len(t["decisions"]) for t in topics)
 
     env = Environment(
         loader=FileSystemLoader(str(_TEMPLATE_DIR)),
@@ -120,7 +119,6 @@ def write_minutes_html(
         actions=actions,
         review_rows=review_rows,
         n_topics=len(topics),
-        n_decisions=n_decisions,
         n_actions=len(actions),
         n_warns=sum(1 for n in review.notes if n.severity == "warn"),
         n_errors=sum(1 for n in review.notes if n.severity == "error"),

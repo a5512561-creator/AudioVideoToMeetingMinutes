@@ -16,11 +16,8 @@
   <h1>會議記錄：{{ meeting_name }}</h1>
   {% for t in topics %}
   <article>
-    <h3>{{ t.title }}</h3>
+    <h3>{{ t.title }}{% if t.clip %} <button type="button" class="play" data-clip="{{ t.clip }}">▶ 聽</button>{% endif %}</h3>
     <p>{{ t.summary }}</p>
-    {% if t.decisions %}<div class="decisions"><b>■ 決議</b><ul>
-      {% for d in t.decisions %}<li>{{ d }}{% if t.clip %} <button type="button" class="play" data-clip="{{ t.clip }}">▶ 聽</button>{% endif %}</li>{% endfor %}
-    </ul></div>{% endif %}
   </article>
   {% endfor %}
   <h2>Action Items</h2>

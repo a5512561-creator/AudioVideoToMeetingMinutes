@@ -52,17 +52,19 @@ def test_html_has_three_tabs_and_header(tmp_path):
     assert "2026/05/18" in t
     assert "逐字稿長度約 1h 55m" in t
     assert "x.txt" in t
-    assert "1 議題" in t and "2 決議" in t and "2 Action" in t
+    assert "1 議題" in t and "2 Action" in t
+    assert "決議" not in t
 
 
-def test_topics_tab_renders_title_summary_decisions(tmp_path):
+def test_topics_tab_renders_title_summary_no_decisions(tmp_path):
     dst = tmp_path / "m.html"
     write_minutes_html(_synth(), ReviewResult(notes=[]), str(dst),
                        meeting_file="x")
     t = dst.read_text(encoding="utf-8")
     assert "KPI / KTR 訂定方式" in t
     assert "討論 KPI 是否納入考核。" in t
-    assert "KPI 不納入考核" in t and "兩週後帶 KTR 公式" in t
+    # the 決議 block was removed — decisions are no longer rendered
+    assert "KPI 不納入考核" not in t and "兩週後帶 KTR 公式" not in t
 
 
 def test_actions_tab_table_and_priority_filter(tmp_path):
@@ -220,8 +222,8 @@ def test_action_skips_context_block_when_empty(tmp_path):
 
 
 def test_clips_dict_contains_each_unique_url_once(tmp_path):
-    """When multiple decisions/actions share the same start, the JS CLIPS
-    dict still lists each URL exactly once (key-collapse via dict)."""
+    """When a topic and action share the same start, the JS CLIPS dict still
+    lists each URL exactly once (key-collapse via dict)."""
     from script.schemas import SynthTopic, SynthAction
     s = _synth(
         topics=[SynthTopic(title="T", summary="s",
@@ -235,8 +237,9 @@ def test_clips_dict_contains_each_unique_url_once(tmp_path):
     write_minutes_html(s, ReviewResult(notes=[]), str(dst),
                        meeting_file="x", pre=5, clips=clips)
     t = dst.read_text(encoding="utf-8")
-    # 3 decisions + 1 action all share start=345 → 4 buttons with data-clip="345"
-    assert t.count('data-clip="345"') == 4
+    # 1 topic-title ▶ + 1 action ▶ share start=345 → 2 buttons with data-clip="345"
+    # (decisions no longer render, so they contribute no buttons)
+    assert t.count('data-clip="345"') == 2
     # but the data URL appears exactly once (in the JS CLIPS dict)
     assert t.count("SHARED") == 1
 

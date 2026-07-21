@@ -21,7 +21,7 @@ def test_good_minutes_all_pass():
     checks = evaluate(_good())
     keys = {c.key for c in checks}
     assert keys == {
-        "action_owner_present", "action_due_present", "decision_nonempty",
+        "action_owner_present", "action_due_present",
         "topic_title_nonempty", "topic_summary_nonempty", "no_placeholder_markers",
     }
     assert all(c.passed for c in checks)
@@ -38,14 +38,6 @@ def test_blank_owner_and_due_flag_offending_action_ids():
     assert checks["action_due_present"].passed is False
     assert checks["action_due_present"].offending == ["A1"]
     assert overall_pass(evaluate(s)) is False
-
-
-def test_blank_decision_flagged_with_dotted_id():
-    s = _good()
-    s.topics[0].decisions = ["有效決議", "  "]
-    checks = {c.key: c for c in evaluate(s)}
-    assert checks["decision_nonempty"].passed is False
-    assert checks["decision_nonempty"].offending == ["T1.d2"]
 
 
 def test_blank_title_and_summary_flagged():

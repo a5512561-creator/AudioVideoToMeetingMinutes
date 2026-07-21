@@ -61,10 +61,9 @@
       var off;
       off=[];A.forEach(function(a,i){if(blank(a.owner))off.push('A'+(i+1));});chk('action_owner_present','每個 Action 有負責人（不得空）',off);
       off=[];A.forEach(function(a,i){if(blank(a.due))off.push('A'+(i+1));});chk('action_due_present','每個 Action 有期限（不得空）',off);
-      off=[];T.forEach(function(t,i){(t.decisions||[]).forEach(function(d,j){if(blank(d))off.push('T'+(i+1)+'.d'+(j+1));});});chk('decision_nonempty','每條決議非空',off);
       off=[];T.forEach(function(t,i){if(blank(t.title))off.push('T'+(i+1));});chk('topic_title_nonempty','每個議題有標題',off);
       off=[];T.forEach(function(t,i){if(blank(t.summary))off.push('T'+(i+1));});chk('topic_summary_nonempty','每個議題有摘要',off);
-      off=[];T.forEach(function(t,i){['title','summary'].forEach(function(f){if(hasMarker(t[f]))off.push('T'+(i+1)+'.'+f);});(t.decisions||[]).forEach(function(d,j){if(hasMarker(d))off.push('T'+(i+1)+'.d'+(j+1));});});
+      off=[];T.forEach(function(t,i){['title','summary'].forEach(function(f){if(hasMarker(t[f]))off.push('T'+(i+1)+'.'+f);});});
       A.forEach(function(a,i){['task','owner','due','context'].forEach(function(f){if(hasMarker(a[f]))off.push('A'+(i+1)+'.'+f);});});chk('no_placeholder_markers','無殘留待確認 / TODO 標記',off);
       return checks;
     }
@@ -79,22 +78,11 @@
         var box=ce('article','topic');
         box.appendChild(bindEdit(ce('h3','',t.title||''),function(v){t.title=v;}));
         box.appendChild(bindEdit(ce('p','summary',t.summary||''),function(v){t.summary=v;}));
-        var dw=ce('div','decisions');dw.appendChild(ce('b','','■ 決議'));
-        var ul=ce('ul');
-        (t.decisions||[]).forEach(function(d,di){
-          var li=ce('li');
-          li.appendChild(bindEdit(ce('span','',d||''),function(v){t.decisions[di]=v;}));
-          var del=ce('button','mini','🗑');del.onclick=function(){t.decisions.splice(di,1);render();refresh();};
-          li.appendChild(del);ul.appendChild(li);
-        });
-        dw.appendChild(ul);
-        var addD=ce('button','mini','＋決議');addD.onclick=function(){t.decisions=t.decisions||[];t.decisions.push('');render();refresh();};
-        dw.appendChild(addD);box.appendChild(dw);
         var delT=ce('button','mini','🗑 刪議題');delT.onclick=function(){D.topics.splice(ti,1);render();refresh();};
         box.appendChild(delT);
         app.appendChild(box);
       });
-      var addT=ce('button','mini','＋議題');addT.onclick=function(){D.topics.push({title:'',summary:'',decisions:[]});render();refresh();};
+      var addT=ce('button','mini','＋議題');addT.onclick=function(){D.topics.push({title:'',summary:''});render();refresh();};
       app.appendChild(addT);
 
       app.appendChild(ce('h2','','Action Items'));

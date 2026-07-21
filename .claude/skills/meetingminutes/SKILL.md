@@ -92,3 +92,12 @@ You are allowed to read the transcript. Do NOT create the lock file.
   one person's path — each colleague may install it elsewhere). If a run already
   produced `count=0` with `audio-track extraction failed`, just re-run `process`
   with ffmpeg prepended to PATH; the LLM stages re-run but the ▶ clips then cut.
+- 會議記錄**不輸出「決議」區塊**（team 的偏好：多數決議沒內容，只保留議題標題＋討論摘要＋
+  Action）。決議已從所有 render 模板（minutes / 兩個 email / edit 頁）與機械稽核
+  （`decision_nonempty` gate）移除；`decisions` 欄位仍留在 schema/合成輸出裡（不顯示、
+  不稽核，向後相容舊 JSON）。不要重新加回決議區塊，除非使用者明確要求。
+- 音檔 zip：`python -m script.main audiozip "<逐字稿路徑>"` 產出 `minutes_audio.zip`
+  （`email_with_audio.html` 相對路徑引用 ＋ 每段 clip），跑 `verify_zip`（ffprobe 可聽性
+  ＋ Playwright 每段可播放 E2E），通過後把 `email.html` ＋ zip co-locate 到逐字稿目錄供
+  SharePoint 上傳。核心在 `script/audio_zip.py`，驗證在 `script/audio_verify.py`；輸出落點
+  `out/<name>/minutes_audio.zip`。這是獨立指令，`process` 不會自動產 zip。

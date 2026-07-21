@@ -3,8 +3,8 @@
 Pure Python, no LLM, no I/O. These checks are the ones the editable HTML
 re-runs live in JS to block export (P3), so they must stay deterministic and
 trivially portable. `offending` ids: actions are A1..An (1-based), topics are
-T1..Tn, a topic's decisions are T{n}.d{m}, and placeholder hits are dotted
-field paths like "A1.task" / "T1.summary".
+T1..Tn, and placeholder hits are dotted field paths like "A1.task" /
+"T1.summary".
 """
 from script.schemas import SynthesizedMinutes, AuditCheckMechanical
 
@@ -45,12 +45,6 @@ def evaluate(synth: SynthesizedMinutes) -> list[AuditCheckMechanical]:
         [f"A{i}" for i, a in enumerate(actions, 1) if _blank(a.due)]))
 
     checks.append(check(
-        "decision_nonempty", "每條決議非空",
-        [f"T{i}.d{j}"
-         for i, t in enumerate(topics, 1)
-         for j, d in enumerate(t.decisions, 1) if _blank(d)]))
-
-    checks.append(check(
         "topic_title_nonempty", "每個議題有標題",
         [f"T{i}" for i, t in enumerate(topics, 1) if _blank(t.title)]))
 
@@ -64,9 +58,6 @@ def evaluate(synth: SynthesizedMinutes) -> list[AuditCheckMechanical]:
             marker_hits.append(f"T{i}.title")
         if _has_marker(t.summary):
             marker_hits.append(f"T{i}.summary")
-        for j, d in enumerate(t.decisions, 1):
-            if _has_marker(d):
-                marker_hits.append(f"T{i}.d{j}")
     for i, a in enumerate(actions, 1):
         for field in ("task", "owner", "due", "context"):
             if _has_marker(getattr(a, field)):

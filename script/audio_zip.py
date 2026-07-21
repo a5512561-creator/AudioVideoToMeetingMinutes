@@ -49,7 +49,7 @@ def build_audio_zip(synth, out_dir, *, pre_seconds: int, duration: int):
     clips_js = {str(s): name for s, name in cut_map.items()}
 
     topics = [
-        {"title": t.title, "summary": t.summary, "decisions": list(t.decisions),
+        {"title": t.title, "summary": t.summary,
          "clip": _clip_key_for(t.source_timestamps, pre_seconds, cut_map)}
         for t in synth.topics
     ]
