@@ -35,17 +35,26 @@ The transcript and audio must NEVER be read by you (the cloud session).
    (`.mp4/.mov/.mkv` — Teams/Zoom exports). List that recording in the lock.
    The pipeline auto-extracts the audio track from a video (never copies the
    whole video), so a Teams `.mp4` yields the ▶ clips just like an `.m4a`.
-2. Run the LLM-free readiness check and read only its metadata output:
-   `python -m script.main validate "<transcript path>"`
-3. If it reports OK, run the on-prem pipeline:
-   `python -m script.main process "<transcript path>" --name "<name>" --llm company`
-4. Everything (map/reduce/review/synth/audit) runs on the company endpoint. You
-   never open the transcript; you only read command stdout.
-5. Open the editable page so the user can edit the minutes and export to Outlook:
-   `python -m script.main edit "<name>"`
-   The user edits topics / decisions / actions in the browser; the export button
-   unlocks only when the mechanical audit passes and they tick "已審閱", then it
-   writes email.html to the folder and opens an Outlook draft.
+
+2. **(New) Auto-generate `run.bat`** in the meeting folder so the user can
+   double-click instead of copying commands manually.
+   Detect ffmpeg's bin dir first via `Get-Command ffmpeg` (PowerShell), then
+   write `run.bat` with ffmpeg's path hardcoded. The `.bat` must:
+   - Use `set "PATH=%PATH%;<ffmpeg-bin>"` at the top so ffmpeg is available
+   - Check if `out/<name>/intermediate/synthesized.json` exists → skip `process`
+   - Run: validate → process (--llm company) → edit
+   - Use `start ""` for edit so it opens in a new window
+   - `pause` at the end so the window stays open
+   - Handle `%` signs correctly (use `%%` in `.bat` files for literal `%`)
+   - Use `enabledelayedexpansion` and `!var!` for dynamic variable access
+   Reference the existing `run.bat` at the bottom of this file for the exact
+   template to follow — keep the structure in sync when updating the skill.
+
+3. After writing both files, tell the user:
+   「隱私鎖已建立 ✅
+   請到會議資料夾 **雙擊 `run.bat`** 即可依序完成驗證、管線、開編輯頁。
+   （亦可手動：`python -m script.main process ... --llm company`）
+   完成後告訴我，我幫您確認產出。」
 
 ### If "claude" (Claude 目前的 LLM) — engine B
 
@@ -105,3 +114,50 @@ You are allowed to read the transcript. Do NOT create the lock file.
 - `python -m script.main audiozip "<逐字稿路徑>"`：**手動**版本，額外跑完整 `verify_zip`
   （ffprobe 可聽性 ＋ Playwright 每段可播放 E2E，`script/audio_verify.py`）。匯出時的自動
   co-locate 為求穩健**略過**這個瀏覽器 E2E；要嚴格驗證每段可播放時才用這支獨立指令。
+
+## `run.bat` 模板
+
+使用公司 LLM 時，Claude 會在會議資料夾自動產生此檔。雙擊執行即可依序完成驗證、管線、
+開編輯頁。修改時請同步更新 Step 2 的規範。
+
+```bat
+@echo off
+chcp 65001 >nul
+setlocal enabledelayedexpansion
+cd /d "%~dp0"
+
+title 會議管線 - <NAME>
+set REPO_ROOT=<D:\path\to\repo>
+set NAME=<MEETING_NAME>
+set TRANSCRIPT=%~dp0%NAME%.vtt
+
+:: ── ffmpeg PATH（Claude 自動偵測寫入）──
+set "PATH=%PATH%;<D:\path\to\ffmpeg\bin>"
+
+:: ── Python ──
+set PY=%REPO_ROOT%\.venv\Scripts\python.exe
+
+:CHECK
+if exist "%REPO_ROOT%\out\%NAME%\intermediate\synthesized.json" (
+    echo [SKIP] synthesized.json 已存在，跳過 process
+    goto :EDIT
+)
+
+echo [1/3] 驗證逐字稿…
+"%PY%" -m script.main validate "%TRANSCRIPT%"
+if !ERRORLEVEL! neq 0 (
+    echo [錯誤] validate 失敗 & pause & exit /b !ERRORLEVEL!
+)
+
+echo [2/3] 執行管線（公司 LLM）…
+"%PY%" -m script.main process "%TRANSCRIPT%" --name "%NAME%" --llm company
+if !ERRORLEVEL! neq 0 (
+    echo [錯誤] process 失敗 & pause & exit /b !ERRORLEVEL!
+)
+
+:EDIT
+echo [開啟] 編輯頁…
+start "" "%PY%" -m script.main edit "%NAME%"
+echo.
+pause
+```
